@@ -21,12 +21,14 @@ logger = logging.getLogger(__name__)
 #   - AttributeError: version mismatch (e.g., python-magic d0.4.24 lacks Magic)
 #   - OSError/FileNotFoundError: shared library (libmagic) not found on system
 #   - Various low-level errors: ctypes.CDLL error on Windows (bundled magic1.dll missing/corrupt)
+_magic: Optional[magic.Magic] = None
+_magic_available = False
+
 try:
     import magic
-    _magic = magic.Magic(mime=True)  # type: ignore[assignment]
+    _magic = magic.Magic(mime=True)
     _magic_available = True
 except (ImportError, AttributeError, OSError):
-    magic = None  # type: ignore[assignment]
     _magic = None
     _magic_available = False
     logger.debug(
@@ -35,7 +37,6 @@ except (ImportError, AttributeError, OSError):
     )
 except Exception:
     # Truly unexpected errors (e.g., ctypes corruption)
-    magic = None  # type: ignore[assignment]
     _magic = None
     _magic_available = False
     logger.debug(

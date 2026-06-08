@@ -16,7 +16,7 @@ from src.utils import human_readable_size
 logger = logging.getLogger(__name__)
 
 # Module-level cache for MIME checker (initialized once, not per-call).
-_mime_cache: Optional[Tuple[Any, tuple, frozenset, frozenset]] = None
+_mime_cache: Optional[tuple] = None
 
 # ── Separator for output formats ──
 try:
@@ -95,12 +95,12 @@ def _get_mime_checker() -> Tuple[Optional[Any], tuple, frozenset, frozenset]:
         return _mime_cache
     except (ImportError, AttributeError, OSError) as e:
         logger.debug("python-magic unavailable (%s), falling back to extension-based detection", e)
-        _mime_cache = (None, (), set(), FALLBACK_EXTS)
+        _mime_cache = (None, (), frozenset(), FALLBACK_EXTS)
         return _mime_cache
     except Exception as e:
         # Unexpected error (e.g., ctypes corruption) — still recover gracefully
         logger.debug("Unexpected error loading python-magic: %s", e, exc_info=True)
-        _mime_cache = (None, (), set(), FALLBACK_EXTS)
+        _mime_cache = (None, (), frozenset(), FALLBACK_EXTS)
         return _mime_cache
 
 

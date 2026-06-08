@@ -387,8 +387,63 @@ pip install --only-binary :all: tkinterdnd2
 ## 🤝 贡献 / Contributing
 
 - **代码风格**：`ruff check src/ tests/`
+- **类型检查**：`mypy src/ --install-types --non-interactive --config-file mypy.ini`
 - **运行测试**：`pytest tests/ -v`
 - **提交规范**：feature branch → PR → main
+
+### ⚠️ 常见 CI 类型检查错误 / Common mypy Type Errors
+
+CI 中 mypy 检查失败通常由以下 3 类问题引起，请务必遵守规范以避免重复提交失败：
+
+**1. Optional 注解缺失（PEP 484 违规）**
+
+变量允许为 `None` 时必须显式标注 `Optional[X]`，禁止隐式 Optional（mypy 默认 `no_implicit_optional=True`）：
+
+```python
+# ❌ 错误：变量类型为 set，但默认值为 None
+def build_tree(parsed_files: set = None):
+    ...
+
+# ✅ 正确：显式使用 Optional
+from typing import Optional
+def build_tree(parsed_files: Optional[set] = None):
+    if parsed_files is None:
+        parsed_files = set()
+```
+
+**2. 变量缺少类型注解**
+
+mypy 无法推断或推断出错误类型时，需要显式注解：
+
+```python
+# ❌ 错误：mypy 无法推断 Counter 类型
+counter = Counter()
+
+# ✅ 正确
+counter: Counter = Counter()
+
+# ❌ 错误：mypy 无法推断空列表元素类型
+lines = []
+
+# ✅ 正确
+lines: list[str] = []
+```
+
+**3. 类型不兼容赋值**
+
+赋值类型必须与变量声明的类型兼容：
+
+```python
+# ❌ 错误：注解为 Magic，赋值 None 不兼容
+from magic import Magic
+_magic: Magic = None
+
+# ✅ 正确：声明为 Optional[Magic]
+from typing import Optional
+_magic: Optional[Magic] = None
+```
+
+> 💡 **提示**：项目根目录的 `mypy.ini` 已配置 `ignore_missing_imports = true` 和模块级忽略规则，可处理 `tkinterdnd2` 等可选依赖的导入问题。
 
 ---
 

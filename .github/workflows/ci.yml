@@ -32,7 +32,7 @@ jobs:
       run: ruff check src/ tests/
 
     - name: Type check with mypy
-      run: mypy src/ --install-types --non-interactive
+      run: mypy src/ --install-types --non-interactive --config-file mypy.ini
 
     - name: Test with pytest
       run: pytest tests/ -v --cov=src --cov-report=xml

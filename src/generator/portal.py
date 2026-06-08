@@ -19,6 +19,7 @@ import re
 import sys
 import base64
 import logging
+from typing import Optional
 from datetime import datetime
 from collections import Counter
 
@@ -91,7 +92,7 @@ def extract_keywords(text: str, max_words: int = 8) -> list:
         '支持', '方法', '方式', '配置', '设置', '参数',
     }
 
-    counter = Counter()
+    counter: Counter = Counter()
     for word in chinese_chars:
         if word not in stop_words:
             counter[word] += 1
@@ -132,7 +133,7 @@ def escape_html(s: str) -> str:
 #  File tree builder
 # ============================================================
 
-def build_file_tree_html(folder_path: str, parsed_files: set = None) -> str:
+def build_file_tree_html(folder_path: str, parsed_files: Optional[set] = None) -> str:
     """Build an ASCII-tree diagram of the folder structure.
 
     Args:
@@ -140,12 +141,12 @@ def build_file_tree_html(folder_path: str, parsed_files: set = None) -> str:
         parsed_files: Set of relative paths that were successfully parsed.
                       Files not in this set will appear grey and unclickable.
     """
-    lines = []
+    lines: list[str] = []
     _walk_and_render(folder_path, folder_path, lines, prefix="", parsed_files=parsed_files or set())
     return '\n'.join(lines)
 
 
-def _walk_and_render(root: str, dirpath: str, lines: list, prefix: str, parsed_files: set = None):
+def _walk_and_render(root: str, dirpath: str, lines: list, prefix: str, parsed_files: Optional[set] = None):
     """Recursively walk directory and append tree lines."""
     if parsed_files is None:
         parsed_files = set()
