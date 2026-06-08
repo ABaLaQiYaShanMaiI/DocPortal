@@ -15,7 +15,6 @@ authors = [
 keywords = ["document-parser", "pdf", "html-generator", "knowledge-portal", "browser-ai", "offline"]
 
 dependencies = [
-    "python-magic>=0.4.27",
     "pdfminer.six>=20221105",
     "python-docx>=0.8.11",
     "python-pptx>=1.0.2",
@@ -32,6 +31,11 @@ dev = [
 ]
 gui = [
     "tkinterdnd2>=0.3.0",
+]
+magic = [
+    # python-magic requires native libmagic DLLs — only available on Linux/macOS.
+    # On Windows, the dispatcher falls back to extension-based dispatch.
+    "python-magic>=0.4.27",
 ]
 
 [project.urls]

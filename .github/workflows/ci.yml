@@ -27,6 +27,12 @@ jobs:
         python -m pip install --upgrade pip setuptools wheel
         pip install -r requirements.txt
         pip install pytest pytest-cov ruff mypy
+        # python-magic requires native libmagic DLLs; only available on Linux/macOS.
+        # On Windows, the dispatcher falls back to extension-based dispatch.
+        if [[ "$RUNNER_OS" != "Windows" ]]; then
+          pip install python-magic
+        fi
+      shell: bash
 
     - name: Lint with ruff
       run: ruff check src/ tests/

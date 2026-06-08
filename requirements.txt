@@ -1,6 +1,7 @@
 # Runtime dependencies (synced with pyproject.toml)
 # For `pip install -r requirements.txt`
-python-magic>=0.4.27
+# python-magic is optional — only install on Linux/macOS where libmagic is available.
+# On Windows, extension-based dispatch is used as fallback.
 pdfminer.six>=20221105
 python-docx>=0.8.11
 python-pptx>=1.0.2
