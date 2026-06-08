@@ -13,6 +13,7 @@ Design decisions:
 - All file contents embedded in DOM (AI can read them when expanded)
 - Default collapsed for fast loading
 """
+from __future__ import annotations
 
 import os
 import re

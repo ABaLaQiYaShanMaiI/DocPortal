@@ -3,6 +3,7 @@ FolderKnowledgeSiteGeneratorForAI — HTML Templates
 Loads and renders HTML templates from the templates/ directory.
 Generates single-page knowledge portal with collapsible file contents.
 """
+from __future__ import annotations
 
 import os
 import string
