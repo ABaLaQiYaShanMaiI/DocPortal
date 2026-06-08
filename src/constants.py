@@ -144,15 +144,20 @@ WPS_MAP = {
     'dps': ('pptx', 'WPS Presentation'),
 }
 
-# ── Output formatting ──
+# ── 输出格式 / Output formatting ──
+# 分隔符，用于所有输出构建器（TXT, Markdown, HTML）。
+# 60 字符宽度适配标准 80 列终端，留有行号/提示符边距。
 # Separator used across all output builders (TXT, Markdown, HTML).
-# Width of 60 characters provides clear visual breaks without being too wide for
-# narrow terminals or small viewports. This width has been chosen empirically
-# to balance readability with compatibility.
+# Width of 60 characters fits standard 80-column terminals while leaving
+# margin for line numbers/prompts.
 SEPARATOR_WIDTH = 60
 SEPARATOR_LINE = "=" * SEPARATOR_WIDTH
 
-# ── Text detection thresholds ──
+# ── 文本检测阈值 / Text detection thresholds ──
+# 探针检查可打印字符比率，阈值 0.9（90%）：
+# - 真实文本：>95% 可打印字符
+# - 二进制文件：<50% 可打印字符
+# - 90% 提供安全边距，最小化误判
 # When probing an unknown file to determine if it's text, we check the ratio
 # of printable characters. The threshold of 0.9 (90%) was chosen because:
 # - Genuine text files (source code, configs, logs) typically have >95% printable chars
@@ -162,9 +167,11 @@ SEPARATOR_LINE = "=" * SEPARATOR_WIDTH
 # - Empirical testing across ~1000 files of mixed types confirmed 0.9 as the optimal
 #   cutoff that minimizes both false positives and false negatives
 TEXT_DETECTION_PRINTABLE_RATIO = 0.9
-# Sample size for text detection (8 KB). Sufficient to capture enough characters
-# for statistical analysis without excessive I/O. Even small config files
-# (<1 KB) are handled by the UTF-8 check above this Latin-1 fallback.
+# 检测采样大小 8KB / Sample size for text detection (8 KB).
+# 足以进行统计分析，同时避免过多 I/O。
+# Sufficient to capture enough characters for statistical analysis without
+# excessive I/O. Even small config files (<1 KB) are handled by the UTF-8
+# check above this Latin-1 fallback.
 TEXT_DETECTION_SAMPLE_BYTES = 8192
 
 
@@ -181,26 +188,29 @@ def get_office_filetype_from_mime(mime: str) -> str | None:
     return entry[0] if entry else None
 
 
-# ── Size limits ──
+# ── 大小限制 / Size limits ──
+# 所有文件总字符数上限：1M 字符 ≈ ~200K tokens
 # Maximum total characters across all files (1M chars ≈ ~200K tokens for most LLMs).
 # Set conservatively to avoid overwhelming context windows of common models.
 DEFAULT_MAX_CHARS = 1_000_000
+# 单文件字符上限：200K 字符，防止异常大文件/数据导出
 # Per-file character limit (200K chars). Most source files are well under this;
 # it mainly guards against abnormally large generated files or data dumps.
 DEFAULT_MAX_CHARS_PER_FILE = 200_000
+# 分块大小：50K 字符 ≈ ~10K tokens（门户模式逐页生成）
+# - 足够小，适配 GPT-3.5 4K 等较小上下文窗口
+# - 足够大，容纳大多数单文件完整内容，无需中间拆分
+# - 注意：chunker 模块使用单独默认值 500K（批量拆分模式，文件聚合而非分页）
 # Chunk size for portal-mode per-file page generation.
 # 50K chars ≈ ~10K tokens for most LLMs (roughly 5 chars/token for code).
-# This value was chosen as a practical balance:
-# - Small enough to fit within tight context windows alongside user instructions
-#   and model responses, even for smaller models (e.g., GPT-3.5 4K context)
+# - Small enough to fit within tight context windows (e.g., GPT-3.5 4K context)
 # - Large enough to accommodate most individual source files in their entirety
-#   without splitting pages mid-file
 # - Note: The chunker module (src/chunker/__init__.py) uses a separate default of
 #   500K chars for batch-split mode, where files are aggregated rather than paginated
 DEFAULT_CHUNK_SIZE = 50_000
-# Maximum files to process (prevents runaway scans on huge directories).
+# 最大处理文件数，防止超大目录扫描失控 / Maximum files to process.
 DEFAULT_MAX_FILES = 500
-# Default UI language (Chinese).
+# 默认 UI 语言：中文 / Default UI language (Chinese).
 DEFAULT_LANG = "zh"
 
 
