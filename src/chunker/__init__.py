@@ -119,38 +119,25 @@ def _collect_files(folder_path: str, max_chars: int | None = None):
     """
     from src.constants import FILTER_DIRS, should_filter_file
     from src.utils import human_readable_size
+    from src.scanner import walk_files
 
     # Collect ALL entries first (without applying max_chars limit)
     # so that sorting happens before truncation.
     raw_entries = []
     total_size = 0
 
-    for dirpath, dirnames, filenames in os.walk(folder_path):
-        dirnames[:] = [
-            d for d in dirnames
-            if d not in FILTER_DIRS and not d.startswith('.')
-        ]
-        for fname in filenames:
-            full_path = os.path.join(dirpath, fname)
-            rel_path = os.path.relpath(full_path, folder_path)
-            if should_filter_file(rel_path):
-                continue
-            if not os.path.isfile(full_path):
-                continue
-
-            text = _parse_single_file(full_path, rel_path)
-            if text is None:
-                continue
-
-            file_size = os.path.getsize(full_path)
-            size_hr = human_readable_size(file_size)
-
-            raw_entries.append({
-                "rel_path": rel_path,
-                "text": text,
-                "size_hr": size_hr,
-            })
-            total_size += len(text)
+    for full_path, rel_path in walk_files(folder_path):
+        text = _parse_single_file(full_path, rel_path)
+        if text is None:
+            continue
+        file_size = os.path.getsize(full_path)
+        size_hr = human_readable_size(file_size)
+        raw_entries.append({
+            "rel_path": rel_path,
+            "text": text,
+            "size_hr": size_hr,
+        })
+        total_size += len(text)
 
     # Sort by relative path BEFORE applying max_chars limit
     raw_entries.sort(key=lambda e: e["rel_path"].lower())

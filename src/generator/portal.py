@@ -25,6 +25,7 @@ from collections import Counter
 from src.constants import FILTER_DIRS as _FILTER_DIRS
 from src.constants import should_filter_file as _should_filter_file
 from src.parser.dispatcher import parse_file
+from src.scanner import walk_files
 from src.generator.templates import (
     wrap_index_html,
     build_file_content_blocks,
@@ -241,23 +242,9 @@ def generate_portal(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    all_files = []
-    for dirpath, dirnames, filenames in os.walk(folder_path):
-        dirnames[:] = [
-            d for d in dirnames
-            if d not in _FILTER_DIRS and not d.startswith('.')
-        ]
-        for fname in filenames:
-            full_path = os.path.join(dirpath, fname)
-            rel_path = os.path.relpath(full_path, folder_path)
-            if _should_filter_file(rel_path):
-                continue
-            if os.path.isfile(full_path):
-                all_files.append((full_path, rel_path))
-
+    all_files = list(walk_files(folder_path))
     total_files = len(all_files)
 
-    # ── Issue 1 fix: early exit for empty folder ──
     if total_files == 0:
         logger.warning("No parseable files found in %s", folder_path)
         return {
@@ -468,21 +455,7 @@ def generate_portal_split(
     docs_dir = os.path.join(output_dir, "docs")
     os.makedirs(docs_dir, exist_ok=True)
 
-    # ── Scan all files ──
-    all_files = []
-    for dirpath, dirnames, filenames in os.walk(folder_path):
-        dirnames[:] = [
-            d for d in dirnames
-            if d not in _FILTER_DIRS and not d.startswith('.')
-        ]
-        for fname in filenames:
-            full_path = os.path.join(dirpath, fname)
-            rel_path = os.path.relpath(full_path, folder_path)
-            if _should_filter_file(rel_path):
-                continue
-            if os.path.isfile(full_path):
-                all_files.append((full_path, rel_path))
-
+    all_files = list(walk_files(folder_path))
     total_files = len(all_files)
 
     if total_files == 0:

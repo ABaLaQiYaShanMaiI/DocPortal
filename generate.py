@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+                                                                                                                                                                                                                                                                                                                                                                                        #!/usr/bin/env python3
 """
 FolderKnowledgeSiteGeneratorForAI — Folder to Knowledge TXT / Portal / Chunked Generator
 
@@ -38,14 +38,7 @@ if sys.platform == 'win32':
 # Ensure the project root is on sys.path so the src package is always findable
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from src.gui_scanner import build_text_from_files, collect_files_info
-
-# Import shared filter rules from constants
-try:
-    from src.constants import FILTER_DIRS as _FILTER_DIRS, should_filter_file as _should_filter_file
-except ImportError:
-    _FILTER_DIRS = frozenset()
-    _should_filter_file = lambda rel_path: False
+from src.scanner import build_text_from_files, collect_files_info
 
 # Try to import portal generator
 try:
@@ -68,22 +61,6 @@ except ImportError:
 # Logger setup — will be reconfigured when --log-file is parsed
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
-
-
-def collect_files(root_dir):
-    """Walk through root_dir and yield all regular file paths (relative)."""
-    for dirpath, dirnames, filenames in os.walk(root_dir):
-        dirnames[:] = [
-            d for d in dirnames
-            if d not in _FILTER_DIRS and not d.startswith('.')
-        ]
-        for fname in filenames:
-            full_path = os.path.join(dirpath, fname)
-            rel_path = os.path.relpath(full_path, root_dir)
-            if _should_filter_file(rel_path):
-                continue
-            if os.path.isfile(full_path):
-                yield full_path, rel_path
 
 
 def build_text_content(folder_path):
@@ -305,8 +282,7 @@ def main():
                   "   Use --split-chunks to control output size by splitting into multiple files.\n")
         
         if output_fmt == 'md':
-            # Markdown mode
-            from src.gui_scanner import build_markdown_from_files
+            from src.scanner import build_markdown_from_files
             file_list, _ = collect_files_info(args.folder)
             text, parsed, skipped, errors, chars = build_markdown_from_files(
                 args.folder, file_list,
