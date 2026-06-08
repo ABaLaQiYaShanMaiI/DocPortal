@@ -242,8 +242,9 @@ def build_markdown_from_files(
             continue
 
         lang_tag = _md_lang_tag(os.path.splitext(finfo['rel_path'])[1].lower())
+        rel_path_clean = finfo['rel_path'].replace('\\', '/')
         section = (
-            f"---\n\n## 📄 {finfo['rel_path'].replace('\\', '/')}\n\n"
+            f"---\n\n## 📄 {rel_path_clean}\n\n"
             f"**{labels['size']}**: {finfo['size_hr']}  \n**{labels['chars']}**: {len(text):,}\n\n"
             f"```{lang_tag}\n{text}\n```\n"
         )

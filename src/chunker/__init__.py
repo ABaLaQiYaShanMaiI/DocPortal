@@ -117,7 +117,6 @@ def _collect_files(folder_path: str, max_chars: int | None = None):
         Tuple of (entries list, total_size int):
         entries: list of dicts with keys {rel_path, text, size_hr}, ordered by file path.
     """
-    from src.constants import FILTER_DIRS, should_filter_file
     from src.utils import human_readable_size
     from src.scanner import walk_files
 
