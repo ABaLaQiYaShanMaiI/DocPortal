@@ -9,11 +9,69 @@ import subprocess
 import sys
 import tempfile
 import shutil
+from contextlib import contextmanager
+from typing import Optional, Dict, Any, List, Tuple
 
 logger = logging.getLogger(__name__)
 
-def _find_libreoffice():
-    """Try to locate LibreOffice executable on the system."""
+# ── Try to import centralized constants ──
+try:
+    from src.constants import (
+        LEGACY_MAP, WPS_MAP, SEPARATOR_LINE, SEPARATOR_WIDTH,
+    )
+except ImportError:
+    SEPARATOR_WIDTH = 60
+    SEPARATOR_LINE = "=" * SEPARATOR_WIDTH
+    LEGACY_MAP = {
+        'doc': ('docx', 'MS Word 97-2003'),
+        'ppt': ('pptx', 'MS PowerPoint 97-2003'),
+        'xls': ('xlsx', 'MS Excel 97-2003'),
+    }
+    WPS_MAP = {
+        'wps': ('docx', 'WPS Writer'),
+        'et': ('xlsx', 'WPS Spreadsheet'),
+        'dps': ('pptx', 'WPS Presentation'),
+    }
+
+
+# ── Temp directory context manager ──
+
+@contextmanager
+def _temp_conversion_dir(prefix: str = "office_conv_"):
+    """Context manager for temporary conversion directories with auto-cleanup.
+
+    Creates a temp directory, yields its path, and guarantees cleanup
+    via shutil.rmtree on exit, regardless of success or failure.
+    This eliminates the three duplicated cleanup blocks that previously
+    existed in _convert_via_libreoffice, _convert_via_wps, and parse_office.
+
+    Args:
+        prefix: Prefix for the temp directory name.
+
+    Yields:
+        Absolute path to the temp directory.
+    """
+    tmp_dir = tempfile.mkdtemp(prefix=prefix)
+    try:
+        yield tmp_dir
+    finally:
+        if os.path.isdir(tmp_dir):
+            try:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+            except Exception as e:
+                logger.debug("Failed to clean up temp dir %s: %s", tmp_dir, e)
+
+
+# ── External tool locators ──
+
+def _find_libreoffice() -> Optional[str]:
+    """Try to locate LibreOffice executable on the system.
+
+    Searches common installation paths for Windows, macOS, and Linux.
+
+    Returns:
+        Absolute path to soffice/swriter executable, or None if not found.
+    """
     candidates = []
     if sys.platform == 'win32':
         candidates = [
@@ -36,8 +94,14 @@ def _find_libreoffice():
     return None
 
 
-def _find_wps():
-    """Try to locate WPS Office executable on the system."""
+def _find_wps() -> Optional[str]:
+    """Try to locate WPS Office executable on the system.
+
+    Searches common installation paths on Windows for various versions.
+
+    Returns:
+        Absolute path to wps.exe, or None if not found.
+    """
     if sys.platform == 'win32':
         for ver in ['12', '11', '10', '9', '8', '7']:
             p = r"C:\Program Files (x86)\WPS Office\{}\wps.exe".format(ver)
@@ -47,75 +111,89 @@ def _find_wps():
     return None
 
 
-def _convert_via_libreoffice(src_path, target_ext):
-    """Convert a legacy Office file to modern format using LibreOffice CLI."""
+# ── File conversion utilities ──
+
+def _convert_via_libreoffice(src_path: str, target_ext: str) -> Optional[str]:
+    """Convert a legacy Office file to modern format using LibreOffice CLI.
+
+    Args:
+        src_path: Absolute path to the source file.
+        target_ext: Target extension including dot (e.g., '.docx').
+
+    Returns:
+        Path to the converted file, or None if conversion failed.
+    """
     lo_path = _find_libreoffice()
     if not lo_path:
         logger.debug("LibreOffice not found, cannot convert %s", src_path)
         return None
-    tmp_dir = tempfile.mkdtemp(prefix="office_conv_")
-    try:
-        cmd = [lo_path, '--headless', '--convert-to', target_ext.lstrip('.'), '--outdir', tmp_dir, src_path]
-        logger.info("Running LibreOffice conversion: %s", ' '.join(cmd))
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if result.returncode != 0:
-            logger.warning("LibreOffice conversion failed for %s: %s", src_path, result.stderr.strip())
-            return None
-        base = os.path.splitext(os.path.basename(src_path))[0]
-        converted = os.path.join(tmp_dir, base + target_ext)
-        if os.path.isfile(converted):
-            if os.path.getsize(converted) == 0:
-                logger.warning("LibreOffice produced empty file for %s (0 bytes)", src_path)
+    with _temp_conversion_dir(prefix="office_conv_") as tmp_dir:
+        try:
+            cmd = [lo_path, '--headless', '--convert-to', target_ext.lstrip('.'),
+                   '--outdir', tmp_dir, src_path]
+            logger.debug("Running LibreOffice conversion: %s", ' '.join(cmd))
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if result.returncode != 0:
+                logger.warning("LibreOffice conversion failed for %s: %s", src_path, result.stderr.strip())
                 return None
-            logger.info("LibreOffice converted %s -> %s (%d bytes)", src_path, converted, os.path.getsize(converted))
-            return converted
-        logger.warning("Converted file not found: %s", converted)
-        return None
-    except subprocess.TimeoutExpired:
-        logger.warning("LibreOffice conversion timed out for %s", src_path)
-        return None
-    except Exception as e:
-        logger.exception("LibreOffice conversion error for %s: %s", src_path, e)
-        return None
-    finally:
-        # Clean up temp directory regardless of outcome
-        if os.path.isdir(tmp_dir):
-            try:
-                shutil.rmtree(tmp_dir, ignore_errors=True)
-            except Exception as e:
-                logger.warning("Failed to clean up LibreOffice temp dir %s: %s", tmp_dir, e)
+            base = os.path.splitext(os.path.basename(src_path))[0]
+            converted = os.path.join(tmp_dir, base + target_ext)
+            if os.path.isfile(converted):
+                if os.path.getsize(converted) == 0:
+                    logger.warning("LibreOffice produced empty file for %s (0 bytes)", src_path)
+                    return None
+                logger.info("LibreOffice converted %s -> %s (%d bytes)", src_path, converted, os.path.getsize(converted))
+                return converted
+            logger.warning("Converted file not found: %s", converted)
+            return None
+        except subprocess.TimeoutExpired:
+            logger.warning("LibreOffice conversion timed out for %s", src_path)
+            return None
+        except (OSError, IOError) as e:
+            logger.warning("LibreOffice conversion I/O error for %s: %s", src_path, e)
+            return None
+        except Exception as e:
+            logger.exception("LibreOffice conversion error for %s: %s", src_path, e)
+            return None
 
 
-def _convert_via_wps(src_path, target_ext):
+def _convert_via_wps(src_path: str, target_ext: str) -> Optional[str]:
     """Convert a WPS format file using WPS Office CLI (falls back to LibreOffice).
 
     Note: WPS CLI (/convert) is tried first since it may handle WPS-format files
     (like .wps, .et, .dps) better than LibreOffice. If WPS fails or is unavailable,
     falls back to LibreOffice.
+
+    Args:
+        src_path: Absolute path to the source file.
+        target_ext: Target extension including dot (e.g., '.docx').
+
+    Returns:
+        Path to the converted file, or None if conversion failed.
     """
     wps_path = _find_wps()
     if wps_path:
-        tmp_dir = tempfile.mkdtemp(prefix="wps_conv_")
-        try:
-            cmd = [wps_path, '/convert', src_path,
-                   '/output', os.path.join(tmp_dir, os.path.basename(src_path).rsplit('.', 1)[0] + target_ext),
-                   '/format', target_ext.lstrip('.')]
-            logger.info("Running WPS conversion: %s", ' '.join(cmd))
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-            if result.returncode == 0:
-                base = os.path.splitext(os.path.basename(src_path))[0]
-                converted = os.path.join(tmp_dir, base + target_ext)
-                if os.path.isfile(converted):
-                    logger.info("WPS converted %s -> %s", src_path, converted)
-                    return converted
-            logger.warning("WPS conversion failed for %s", src_path)
-        except Exception as e:
-            logger.exception("WPS conversion error for %s: %s", src_path, e)
-        finally:
+        with _temp_conversion_dir(prefix="wps_conv_") as tmp_dir:
             try:
-                shutil.rmtree(tmp_dir, ignore_errors=True)
+                base_name = os.path.basename(src_path).rsplit('.', 1)[0]
+                cmd = [wps_path, '/convert', src_path,
+                       '/output', os.path.join(tmp_dir, base_name + target_ext),
+                       '/format', target_ext.lstrip('.')]
+                logger.debug("Running WPS conversion: %s", ' '.join(cmd))
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                if result.returncode == 0:
+                    base = os.path.splitext(os.path.basename(src_path))[0]
+                    converted = os.path.join(tmp_dir, base + target_ext)
+                    if os.path.isfile(converted):
+                        logger.info("WPS converted %s -> %s", src_path, converted)
+                        return converted
+                logger.warning("WPS conversion failed for %s", src_path)
+            except subprocess.TimeoutExpired:
+                logger.warning("WPS conversion timed out for %s", src_path)
+            except (OSError, IOError) as e:
+                logger.warning("WPS conversion I/O error for %s: %s", src_path, e)
             except Exception as e:
-                logger.warning("Failed to clean up WPS temp dir %s: %s", tmp_dir, e)
+                logger.exception("WPS conversion error for %s: %s", src_path, e)
     else:
         logger.debug("WPS Office not found for %s", src_path)
 
@@ -126,24 +204,61 @@ def _convert_via_wps(src_path, target_ext):
     return None
 
 
-def _auto_convert(src_path, target_ext):
-    """Try to convert a legacy/WPS file using any available converter."""
+def _auto_convert(src_path: str, target_ext: str) -> Optional[str]:
+    """Try to convert a legacy/WPS file using any available converter.
+
+    Tries LibreOffice first, then WPS as fallback.
+
+    Args:
+        src_path: Absolute path to the source file.
+        target_ext: Target extension including dot (e.g., '.docx').
+
+    Returns:
+        Path to the converted file, or None if all converters failed.
+    """
     converted = _convert_via_libreoffice(src_path, target_ext)
     if converted:
         return converted
     return _convert_via_wps(src_path, target_ext)
 
 
-def parse_office(filepath, filetype, include_tables=False, include_headers_footers=False,
-                 include_footnotes=False, annotate_styles=True, max_rows_xlsx=10000,
-                 extract_ppt_notes=False):
-    """Parse an Office document and return extracted text."""
+# ── Main parse entry point ──
+
+def parse_office(
+    filepath: str,
+    filetype: str,
+    include_tables: bool = False,
+    include_headers_footers: bool = False,
+    include_footnotes: bool = False,
+    annotate_styles: bool = True,
+    max_rows_xlsx: int = 10000,
+    extract_ppt_notes: bool = False,
+) -> Optional[Dict[str, Any]]:
+    """Parse an Office document and return extracted text.
+
+    Handles modern formats (DOCX, PPTX, XLSX) natively via python-docx,
+    python-pptx, and openpyxl. Legacy formats (DOC, PPT, XLS) and WPS
+    formats (WPS, ET, DPS) are auto-converted to modern equivalents first.
+
+    Args:
+        filepath: Absolute path to the Office file.
+        filetype: Short type identifier: 'docx', 'doc', 'pptx', 'ppt',
+                  'xlsx', 'xls', 'wps', 'et', 'dps'.
+        include_tables: Extract table content from DOCX files.
+        include_headers_footers: Extract headers and footers from DOCX.
+        include_footnotes: Extract footnotes from DOCX.
+        annotate_styles: Include style annotations in DOCX output.
+        max_rows_xlsx: Maximum rows to extract per XLSX worksheet.
+        extract_ppt_notes: Extract speaker notes from PPTX.
+
+    Returns:
+        Dict with keys {extract_type, text, metadata}, or None on failure.
+    """
     actual_filepath = filepath
     actual_filetype = filetype
 
     # Handle legacy Office formats (.doc, .ppt, .xls)
-    legacy_map = {'doc': ('docx', 'MS Word 97-2003'), 'ppt': ('pptx', 'MS PowerPoint 97-2003'),
-                  'xls': ('xlsx', 'MS Excel 97-2003')}
+    legacy_map: Dict[str, Tuple[str, str]] = LEGACY_MAP  # type: ignore[assignment]
     if filetype in legacy_map:
         target_ext, format_name = legacy_map[filetype]
         logger.info("Legacy %s format detected: %s. Converting to %s...",
@@ -157,12 +272,12 @@ def parse_office(filepath, filetype, include_tables=False, include_headers_foote
             logger.warning("Cannot parse legacy %s file: %s. Install LibreOffice for auto-conversion.",
                            format_name, filepath)
             return {"extract_type": "text",
-                    "text": "[Unsupported legacy format: {}]\n[File: {}]\nConsider converting to {} manually.".format(format_name, os.path.basename(filepath), target_ext.upper()),
+                    "text": "[Unsupported legacy format: {}]\n[File: {}]\nConsider converting to {} manually.".format(
+                        format_name, os.path.basename(filepath), target_ext.upper()),
                     "metadata": {"mime": "application/legacy-office", "note": "Legacy format"}}
 
     # Handle WPS formats (.wps, .et, .dps)
-    wps_map = {'wps': ('docx', 'WPS Writer'), 'et': ('xlsx', 'WPS Spreadsheet'),
-               'dps': ('pptx', 'WPS Presentation')}
+    wps_map: Dict[str, Tuple[str, str]] = WPS_MAP  # type: ignore[assignment]
     if filetype in wps_map:
         target_ext, format_name = wps_map[filetype]
         logger.info("%s format detected: %s. Converting to %s...",
@@ -176,7 +291,8 @@ def parse_office(filepath, filetype, include_tables=False, include_headers_foote
             logger.warning("Cannot parse %s file: %s. Install LibreOffice or WPS Office.",
                            format_name, filepath)
             return {"extract_type": "text",
-                    "text": "[Unsupported format: {}]\n[File: {}]\nInstall LibreOffice or WPS Office.".format(format_name, os.path.basename(filepath)),
+                    "text": "[Unsupported format: {}]\n[File: {}]\nInstall LibreOffice or WPS Office.".format(
+                        format_name, os.path.basename(filepath)),
                     "metadata": {"mime": "application/wps-office", "note": "WPS format"}}
 
     # Parse the (possibly converted) modern file
@@ -194,21 +310,39 @@ def parse_office(filepath, filetype, include_tables=False, include_headers_foote
                          actual_filepath, actual_filetype, e)
         return None
     finally:
+        # Clean up temp conversion directory if a conversion was performed
         if actual_filepath != filepath and os.path.exists(actual_filepath):
             tmp_dir = os.path.dirname(actual_filepath)
             try:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
             except Exception as e:
-                logger.warning("Failed to clean up temp conversion dir %s: %s", tmp_dir, e)
+                logger.debug("Failed to clean up temp conversion dir %s: %s", tmp_dir, e)
 
 
-def _get_style_label(paragraph):
-    """Return a human-readable style label for a paragraph."""
+# ── Style annotation helper ──
+
+def _get_style_label(paragraph: Any) -> str:
+    """Extract a human-readable style label from a python-docx Paragraph.
+
+    Identifies heading styles (both 'Heading N' naming convention and
+    built-in heading styles) and returns a bracketed label like '[Heading 1]'.
+    Non-heading styles return an empty string.
+
+    This function is used by _parse_docx to annotate paragraphs with their
+    Word style names when annotate_styles=True.
+
+    Args:
+        paragraph: A python-docx Paragraph object.
+
+    Returns:
+        Style label string like '[Heading 1]', or '' if not a heading.
+    """
     try:
         style = paragraph.style
         if style and style.name:
             name = style.name
-            # Both checks merged: 'Heading' prefix OR built-in heading style
+            # Check for heading: either name starts with 'Heading'/'heading',
+            # or the style is a built-in heading style.
             if name.startswith('Heading') or name.startswith('heading') or \
                (hasattr(style, 'builtin') and style.builtin and 'heading' in name.lower()):
                 return "[{}]".format(name)
@@ -217,13 +351,71 @@ def _get_style_label(paragraph):
     return ""
 
 
-def _parse_docx(filepath, include_tables=False, include_headers_footers=False,
-                include_footnotes=False, annotate_styles=True):
-    """Parse a .docx file with configurable extraction."""
+# ── Paragraph normalization ──
+
+def _normalize_paragraphs(parts: List[str]) -> str:
+    """Collapse excessive blank lines while preserving paragraph structure.
+
+    Given a list of text lines (where empty strings represent paragraph breaks),
+    collapses runs of more than 2 consecutive empty strings into at most 2.
+    Additionally trims leading/trailing blank lines from the result.
+
+    This normalization is important because the raw paragraph list from
+    python-docx often contains many consecutive empty lines (one per empty
+    paragraph in the document), which would bloat the output without adding
+    meaningful structure.
+
+    Args:
+        parts: List of strings representing lines/paragraphs.
+
+    Returns:
+        A single string with blank lines normalized and joined by newlines.
+    """
+    result = []
+    blank_count = 0
+    for part in parts:
+        if part == "":
+            blank_count += 1
+            # Allow at most 2 consecutive blank lines to preserve paragraph
+            # separation while avoiding excessive whitespace.
+            if blank_count <= 2:
+                result.append("")
+        else:
+            blank_count = 0
+            result.append(part)
+    # Trim leading and trailing blank lines.
+    while result and result[0] == "":
+        result.pop(0)
+    while result and result[-1] == "":
+        result.pop()
+    return "\n".join(result)
+
+
+# ── DOCX parser ──
+
+def _parse_docx(
+    filepath: str,
+    include_tables: bool = False,
+    include_headers_footers: bool = False,
+    include_footnotes: bool = False,
+    annotate_styles: bool = True,
+) -> Dict[str, Any]:
+    """Parse a .docx file with configurable extraction options.
+
+    Args:
+        filepath: Absolute path to the .docx file.
+        include_tables: If True, extract table content.
+        include_headers_footers: If True, extract headers and footers.
+        include_footnotes: If True, extract footnotes.
+        annotate_styles: If True, prepend style labels to paragraphs.
+
+    Returns:
+        Dict with keys {extract_type, text, metadata}.
+    """
     from docx import Document
     doc = Document(filepath)
 
-    text_parts = []
+    text_parts: List[str] = []
 
     for para in doc.paragraphs:
         text = para.text.strip()
@@ -233,9 +425,9 @@ def _parse_docx(filepath, include_tables=False, include_headers_footers=False,
         style_label = _get_style_label(para) if annotate_styles else ""
         if style_label and "Heading" in style_label:
             text_parts.append("")
-            text_parts.append("=" * 60)
+            text_parts.append(SEPARATOR_LINE)
             text_parts.append("{} {}".format(style_label, text))
-            text_parts.append("=" * 60)
+            text_parts.append(SEPARATOR_LINE)
         else:
             text_parts.append("{}{}".format(style_label + " " if style_label else "", text))
 
@@ -246,7 +438,7 @@ def _parse_docx(filepath, include_tables=False, include_headers_footers=False,
             rows = []
             for row in table.rows:
                 # Deduplicate merged cells: python-docx returns duplicate cell objects for merged cells
-                seen_texts = set()
+                seen_texts: set = set()
                 filtered_cells = []
                 for cell in row.cells:
                     cell_text = cell.text.strip()
@@ -300,30 +492,21 @@ def _parse_docx(filepath, include_tables=False, include_headers_footers=False,
                         "format": "docx", "annotated_styles": annotate_styles}}
 
 
-def _normalize_paragraphs(parts):
-    """Collapse excessive blank lines while preserving paragraph structure."""
-    result = []
-    blank_count = 0
-    for part in parts:
-        if part == "":
-            blank_count += 1
-            if blank_count <= 2:
-                result.append("")
-        else:
-            blank_count = 0
-            result.append(part)
-    while result and result[0] == "":
-        result.pop(0)
-    while result and result[-1] == "":
-        result.pop()
-    return "\n".join(result)
+# ── PPTX parser ──
 
+def _parse_pptx(filepath: str, extract_notes: bool = False) -> Dict[str, Any]:
+    """Parse a .pptx file, extracting slide text and optional speaker notes.
 
-def _parse_pptx(filepath, extract_notes=False):
-    """Parse a .pptx file."""
+    Args:
+        filepath: Absolute path to the .pptx file.
+        extract_notes: If True, include speaker notes for each slide.
+
+    Returns:
+        Dict with keys {extract_type, text, metadata}.
+    """
     from pptx import Presentation
     prs = Presentation(filepath)
-    text_parts = []
+    text_parts: List[str] = []
     for sidx, slide in enumerate(prs.slides, 1):
         text_parts.append("")
         text_parts.append("-" * 50)
@@ -352,18 +535,28 @@ def _parse_pptx(filepath, extract_notes=False):
                         "format": "pptx"}}
 
 
-def _parse_xlsx(filepath, max_rows=10000):
-    """Parse a .xlsx file with row limit per worksheet."""
+# ── XLSX parser ──
+
+def _parse_xlsx(filepath: str, max_rows: int = 10000) -> Dict[str, Any]:
+    """Parse a .xlsx file with row limit per worksheet.
+
+    Args:
+        filepath: Absolute path to the .xlsx file.
+        max_rows: Maximum rows to extract per worksheet (default 10,000).
+
+    Returns:
+        Dict with keys {extract_type, text, metadata}.
+    """
     import openpyxl
     wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
-    text_parts = []
+    text_parts: List[str] = []
     for sheet_name in wb.sheetnames:
         ws = wb[sheet_name]
         text_parts.append("")
-        text_parts.append("=" * 60)
+        text_parts.append(SEPARATOR_LINE)
         text_parts.append("Sheet: {}".format(sheet_name))
-        text_parts.append("=" * 60)
-        rc = 0  # Reset per-worksheet counter
+        text_parts.append(SEPARATOR_LINE)
+        rc = 0  # Reset per-worksheet row counter
         for row in ws.iter_rows(values_only=True):
             rc += 1
             if rc > max_rows:

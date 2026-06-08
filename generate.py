@@ -48,13 +48,13 @@ try:
 except ImportError:
     HAS_PORTAL = False
 
-# Try to import chunker
+# Try to import chunker (this also provides its own DEFAULT_CHUNK_SIZE for chunked mode)
 try:
-    from src.chunker import write_chunks, DEFAULT_CHUNK_SIZE
+    from src.chunker import write_chunks, DEFAULT_CHUNK_SIZE as CHUNKER_DEFAULT_CHUNK_SIZE
     HAS_CHUNKER = True
 except ImportError:
     HAS_CHUNKER = False
-    DEFAULT_CHUNK_SIZE = 500_000
+    CHUNKER_DEFAULT_CHUNK_SIZE = 500_000
     def write_chunks(*args, **kwargs):
         raise ImportError("src.chunker module not available")
 
@@ -63,8 +63,15 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def build_text_content(folder_path):
-    """Parse all files under folder_path and return full text content (no truncation)."""
+def build_text_content(folder_path: str):
+    """Parse all files under folder_path and return full text content (no truncation).
+    
+    Args:
+        folder_path: Absolute path to the source folder.
+    
+    Returns:
+        Tuple of (text, parsed_count, skipped_count, error_count, total_chars).
+    """
     file_list, _ = collect_files_info(folder_path)
     text, parsed, skipped, errors, chars = build_text_from_files(
         folder_path, file_list, include_skipped=True
@@ -133,8 +140,8 @@ def main():
     parser.add_argument(
         "--chunk-size",
         type=int,
-        default=DEFAULT_CHUNK_SIZE,
-        help=f"[分片模式] 每个分片的最大字符数（默认 {DEFAULT_CHUNK_SIZE:,}，设为 0 不限）",
+        default=CHUNKER_DEFAULT_CHUNK_SIZE,
+        help=f"[分片模式] 每个分片的最大字符数（默认 {CHUNKER_DEFAULT_CHUNK_SIZE:,}，设为 0 不限）",
     )
     parser.add_argument(
         "--max-chars",
@@ -201,7 +208,7 @@ def main():
         result = write_chunks(
             folder_path=folder_path,
             output_dir=output_dir,
-            chunk_size=chunk_size or DEFAULT_CHUNK_SIZE,
+            chunk_size=chunk_size or CHUNKER_DEFAULT_CHUNK_SIZE,
             max_chars=args.max_chars,
             force_split=args.force_split,
         )

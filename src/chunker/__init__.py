@@ -20,10 +20,24 @@ import os
 import logging
 from html import escape
 from datetime import datetime
+from typing import Optional, List, Dict, Tuple, Any
 
 logger = logging.getLogger(__name__)
 
-# ── default chunk size: 500,000 characters ──
+# ── Try to import SEPARATOR_LINE ──
+try:
+    from src.constants import SEPARATOR_LINE
+except ImportError:
+    SEPARATOR_LINE = "=" * 60  # fallback
+
+# ── Default chunk size: 500,000 characters ──
+# 500K chars ≈ ~100K tokens for most LLMs (roughly 5 chars/token for code).
+# This value was chosen as a practical balance:
+# - Large enough to provide meaningful context per chunk (~2-3 average source files)
+# - Small enough to fit within GPT-4/Claude 128K context windows with room for
+#   the user's message, instructions, and the model's response
+# Note: This is the chunker module's own default, distinct from the constants.py
+# DEFAULT_CHUNK_SIZE (50K) which is used for portal-mode per-file page generation.
 DEFAULT_CHUNK_SIZE = 500_000
 
 
@@ -33,8 +47,8 @@ class FileChunk:
     def __init__(self, chunk_index: int, chunk_size: int):
         self.index = chunk_index  # 0-based
         self.chunk_size = chunk_size  # max chars for this chunk
-        self.files: list[dict] = []  # list of dicts: {rel_path, text, size, size_hr}
-        self.accumulated_chars = 0
+        self.files: List[Dict[str, Any]] = []  # list of dicts: {rel_path, text, size, size_hr}
+        self.accumulated_chars: int = 0
 
     @property
     def is_full(self) -> bool:
@@ -57,7 +71,7 @@ class FileChunk:
 
     def get_header(self, folder_name: str) -> str:
         """Generate a header for this chunk's TXT output."""
-        sep = "=" * 60
+        sep = SEPARATOR_LINE
         lines = [
             sep,
             f"Folder Knowledge Export — Chunk {self.index + 1}",
@@ -75,7 +89,7 @@ class FileChunk:
         parts = []
         if include_header:
             parts.append(self.get_header(folder_name))
-        sep = "=" * 60
+        sep = SEPARATOR_LINE
         for f in self.files:
             block = (
                 f"{sep}\n"
@@ -89,7 +103,7 @@ class FileChunk:
         return "".join(parts)
 
 
-def _parse_single_file(full_path: str, rel_path: str) -> str | None:
+def _parse_single_file(full_path: str, rel_path: str) -> Optional[str]:
     """Parse a single file and return its text, or None on failure."""
     from src.parser.dispatcher import parse_file as _parse_file
 
@@ -106,7 +120,7 @@ def _parse_single_file(full_path: str, rel_path: str) -> str | None:
         return None
 
 
-def _collect_files(folder_path: str, max_chars: int | None = None):
+def _collect_files(folder_path: str, max_chars: Optional[int] = None) -> Tuple[List[Dict[str, Any]], int]:
     """Walk folder_path, collect file info, and parse text.
 
     Args:
@@ -122,7 +136,7 @@ def _collect_files(folder_path: str, max_chars: int | None = None):
 
     # Collect ALL entries first (without applying max_chars limit)
     # so that sorting happens before truncation.
-    raw_entries = []
+    raw_entries: List[Dict[str, Any]] = []
     total_size = 0
 
     for full_path, rel_path in walk_files(folder_path):
@@ -142,7 +156,7 @@ def _collect_files(folder_path: str, max_chars: int | None = None):
     raw_entries.sort(key=lambda e: e["rel_path"].lower())
 
     # Now apply max_chars global limit on sorted entries
-    entries = []
+    entries: List[Dict[str, Any]] = []
     accumulated = 0
     limit_reached = False
 
@@ -173,10 +187,10 @@ def _collect_files(folder_path: str, max_chars: int | None = None):
 
 
 def chunk_files(
-    entries: list[dict],
+    entries: List[Dict[str, Any]],
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     force_split: bool = False,
-) -> list[FileChunk]:
+) -> List[FileChunk]:
     """Split a sorted list of file entries into chunks.
 
     Args:
@@ -188,9 +202,9 @@ def chunk_files(
     Returns:
         List of FileChunk objects.
     """
-    chunks: list[FileChunk] = []
+    chunks: List[FileChunk] = []
     current_chunk = FileChunk(0, chunk_size)
-    oversized_files = []
+    oversized_files: List[str] = []
 
     for entry in entries:
         text_len = len(entry["text"])
@@ -282,7 +296,7 @@ def chunk_files(
 def generate_index_html(
     folder_name: str,
     chunk_size: int,
-    chunks: list[FileChunk],
+    chunks: List[FileChunk],
     output_dir: str,
 ) -> str:
     """Generate an index HTML file listing all chunks and their contents.
@@ -301,9 +315,9 @@ def generate_index_html(
     total_files = sum(len(c.files) for c in chunks)
 
     # Build chunk table rows
-    chunk_rows = []
+    chunk_rows: List[str] = []
     for chunk in chunks:
-        file_list_items = []
+        file_list_items: List[str] = []
         for f in chunk.files:
             file_list_items.append(
                 f'            <li class="file-entry">{escape(f["rel_path"])} '
@@ -475,9 +489,9 @@ def write_chunks(
     folder_path: str,
     output_dir: str,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
-    max_chars: int | None = None,
+    max_chars: Optional[int] = None,
     force_split: bool = False,
-) -> dict:
+) -> Dict[str, Any]:
     """Main entry point: scan, chunk, and write output files.
 
     Args:
@@ -551,7 +565,7 @@ def write_chunks(
         f.write(f"Chunk size: {chunk_size:,} chars\n")
         f.write(f"Force split: {force_split}\n")
         f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write("=" * 60 + "\n\n")
+        f.write(SEPARATOR_LINE + "\n\n")
         for chunk in chunks:
             f.write(f"Chunk {chunk.index + 1:03d} ({folder_name}_part_{chunk.index + 1:03d}.txt):\n")
             f.write(f"  Files: {len(chunk.files)}, Chars: {chunk.accumulated_chars:,}\n")

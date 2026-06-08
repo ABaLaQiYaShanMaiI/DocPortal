@@ -9,20 +9,27 @@ import os
 import logging
 from html import escape
 from datetime import datetime
+from typing import Dict, List, Tuple, Optional, Any
 
 from src.utils import human_readable_size
 
 logger = logging.getLogger(__name__)
 
-# Module-level cache for MIME checker
-_mime_cache = None
+# Module-level cache for MIME checker (initialized once, not per-call).
+_mime_cache: Optional[Tuple[Any, tuple, frozenset, frozenset]] = None
+
+# ── Separator for output formats ──
+try:
+    from src.constants import SEPARATOR_LINE
+except ImportError:
+    SEPARATOR_LINE = "=" * 60  # fallback
 
 # ── Import shared filter rules ──
 try:
     from src.constants import SUPPORTED_TEXT_EXTS, should_filter_dir, should_filter_file
     FALLBACK_EXTS = SUPPORTED_TEXT_EXTS
 except ImportError:
-    FALLBACK_EXTS = {
+    FALLBACK_EXTS = frozenset({
         '.txt', '.md', '.html', '.htm', '.json', '.xml', '.csv',
         '.yaml', '.yml', '.toml', '.ini', '.log', '.cfg', '.conf',
         '.py', '.pyw', '.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.less',
@@ -37,49 +44,94 @@ except ImportError:
         '.doc', '.ppt', '.xls', '.wps', '.et', '.dps',
         '.csproj', '.fsproj', '.vbproj', '.sln',
         '.xaml', '.axaml',
-    }
+    })
 
     def should_filter_dir(dirname: str) -> bool:
+        """Fallback: skip dot-prefixed directories."""
         return dirname.startswith('.')
 
     def should_filter_file(rel_path: str) -> bool:
+        """Fallback: skip dot-prefixed files."""
         return os.path.basename(rel_path).startswith('.')
 
 
 # ── MIME detection ──
 
-def _get_mime_checker():
+def _get_mime_checker() -> Tuple[Optional[Any], tuple, frozenset, frozenset]:
+    """Initialize and cache the MIME detection machinery.
+
+    Returns a cached tuple of (magic_checker, text_prefixes, exact_mimes, fallback_exts).
+    The checker object is created once at module load and reused for all calls.
+    This avoids repeated `import magic` calls that were noted as a performance issue.
+
+    Returns:
+        Tuple of (checker_or_None, prefixes_tuple, exact_set, fallback_extensions).
+    """
     global _mime_cache
     if _mime_cache is not None:
         return _mime_cache
+
+    # Try to use centralized constants first
     try:
-        import magic
-        checker = magic.Magic(mime=True)
+        from src.constants import (
+            TEXT_MIME_PREFIXES, EXACT_MIME_SET, OFFICE_MIME_SET
+        )
+        prefixes = tuple(TEXT_MIME_PREFIXES)
+        exact = frozenset(EXACT_MIME_SET)
+    except ImportError:
         prefixes = ('text/',)
-        exact = {
+        exact = frozenset({
             'application/pdf',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'application/msword', 'application/vnd.ms-powerpoint', 'application/vnd.ms-excel',
-        }
+        })
+
+    try:
+        import magic
+        checker = magic.Magic(mime=True)
         _mime_cache = (checker, prefixes, exact, FALLBACK_EXTS)
         return _mime_cache
-    except Exception:
+    except (ImportError, AttributeError, OSError) as e:
+        logger.debug("python-magic unavailable (%s), falling back to extension-based detection", e)
+        _mime_cache = (None, (), set(), FALLBACK_EXTS)
+        return _mime_cache
+    except Exception as e:
+        # Unexpected error (e.g., ctypes corruption) — still recover gracefully
+        logger.debug("Unexpected error loading python-magic: %s", e, exc_info=True)
         _mime_cache = (None, (), set(), FALLBACK_EXTS)
         return _mime_cache
 
 
 def is_file_supported(full_path: str, ext: str) -> bool:
-    """Check if a file is supported via MIME type, falling back to extension."""
+    """Check if a file is supported via MIME type, falling back to extension.
+
+    Strategy:
+    1. If python-magic is available, detect MIME type from file content.
+       - Returns True for text/* MIME types and known exact matches (PDF, Office).
+    2. If python-magic is unavailable or fails, fall back to extension matching
+       against the supported text extensions list.
+
+    Args:
+        full_path: Absolute path to the file.
+        ext: Lowercase file extension (including dot, e.g., '.py').
+
+    Returns:
+        True if the file should be parsed, False otherwise.
+    """
     checker, prefixes, exact, fallback_exts = _get_mime_checker()
     if checker is not None:
         try:
             mime = checker.from_file(full_path)
             if mime.startswith(prefixes) or mime in exact:
                 return True
-        except Exception:
-            pass
+        except (OSError, IOError) as e:
+            # File may have been deleted between scan and check, or permissions issue
+            logger.debug("MIME detection I/O error for %s: %s", full_path, e)
+        except Exception as e:
+            # python-magic may raise MagicException on some edge cases
+            logger.debug("MIME detection failed for %s: %s", full_path, e)
     return ext in fallback_exts
 
 
@@ -89,6 +141,14 @@ def walk_files(root_dir: str):
     """Yield (full_path, rel_path) for all non-filtered files under root_dir.
 
     Used by both CLI (generate.py) and GUI (collect_files_info).
+    Filters directories and files according to the rules defined in
+    constants.py (should_filter_dir, should_filter_file).
+
+    Args:
+        root_dir: Root directory path to walk.
+
+    Yields:
+        Tuple of (full_path: str, rel_path: str) for each accepted file.
     """
     for dirpath, dirnames, filenames in os.walk(root_dir):
         dirnames[:] = [d for d in dirnames if not should_filter_dir(d)]
@@ -103,13 +163,29 @@ def walk_files(root_dir: str):
 
 # ── File info collection (GUI) ──
 
-def collect_files_info(root_dir: str) -> tuple:
-    """Scan folder, return (file_list, total_size)."""
-    file_list = []
+def collect_files_info(root_dir: str) -> Tuple[List[Dict[str, Any]], int]:
+    """Scan folder, return file list with metadata and total size.
+
+    Collects file path, relative path, size (bytes and human-readable),
+    extension, and whether the file is supported for parsing.
+
+    Args:
+        root_dir: Root directory path to scan.
+
+    Returns:
+        Tuple of (file_list, total_size):
+        - file_list: List of dicts with keys {path, rel_path, size, size_hr, ext, supported}
+        - total_size: Total bytes of all collected files
+    """
+    file_list: List[Dict[str, Any]] = []
     total_size = 0
     try:
         for full_path, rel_path in walk_files(root_dir):
-            file_size = os.path.getsize(full_path)
+            try:
+                file_size = os.path.getsize(full_path)
+            except OSError as e:
+                logger.warning("Cannot get size for %s: %s", full_path, e)
+                continue
             ext = os.path.splitext(rel_path)[1].lower()
             supported = is_file_supported(full_path, ext)
             file_list.append({
@@ -118,15 +194,24 @@ def collect_files_info(root_dir: str) -> tuple:
                 'ext': ext, 'supported': supported,
             })
             total_size += file_size
+    except OSError as e:
+        logger.error("Error scanning folder %s: %s", root_dir, e, exc_info=True)
     except Exception as e:
-        logger.error("Error scanning folder: %s", e)
+        logger.error("Unexpected error scanning folder %s: %s", root_dir, e, exc_info=True)
     return file_list, total_size
 
 
 # ── Label helpers ──
 
-def _txt_labels(language: str) -> dict:
-    """Return label dict for text/markdown builders."""
+def _txt_labels(language: str) -> Dict[str, str]:
+    """Return label dict for text/markdown builders.
+
+    Args:
+        language: ISO 639-1 language code ('zh' for Chinese, otherwise English).
+
+    Returns:
+        Dict mapping label keys to localized strings.
+    """
     if language == 'zh':
         return {
             'size': '文件大小', 'chars': '字符数', 'unsupported': '不支持的格式',
@@ -142,12 +227,21 @@ def _txt_labels(language: str) -> dict:
 
 def build_text_from_files(
     folder_path: str,
-    file_list: list,
+    file_list: List[Dict[str, Any]],
     include_skipped: bool = False,
-) -> tuple:
+) -> Tuple[str, int, int, int, int]:
     """Generate plain text output with file separators. No truncation.
 
-    Returns (text, parsed_count, skipped_count, error_count, total_chars).
+    Iterates through file_list, parses each supported file, and concatenates
+    their content with separator headers.
+
+    Args:
+        folder_path: Absolute path to the source folder.
+        file_list: List of file info dicts from collect_files_info().
+        include_skipped: If True, include [SKIPPED] entries in output.
+
+    Returns:
+        Tuple of (text, parsed_count, skipped_count, error_count, total_chars).
     """
     from src.parser.dispatcher import parse_file
 
@@ -156,7 +250,7 @@ def build_text_from_files(
     parsed_count = 0
     skipped_count = 0
     error_count = 0
-    sep = "=" * 60
+    sep = SEPARATOR_LINE
 
     for finfo in file_list:
         if not finfo['supported']:
@@ -170,7 +264,12 @@ def build_text_from_files(
                 skipped_count += 1
                 continue
             text = (result.get("text") or "").strip()
-        except Exception:
+        except (OSError, IOError) as e:
+            logger.debug("I/O error parsing %s: %s", finfo['rel_path'], e)
+            error_count += 1
+            continue
+        except Exception as e:
+            logger.debug("Unexpected error parsing %s: %s", finfo['rel_path'], e)
             error_count += 1
             continue
 
@@ -189,7 +288,7 @@ def build_text_from_files(
     header = (
         f"Folder Knowledge Export\nSource: {os.path.abspath(folder_path)}\n"
         f"Parsed files: {parsed_count}\nSkipped files: {skipped_count}\n"
-        f"Errors: {error_count}\nTotal characters: {total_chars:,}\n{'=' * 60}\n\n"
+        f"Errors: {error_count}\nTotal characters: {total_chars:,}\n{sep}\n\n"
     )
     return header + ''.join(parts), parsed_count, skipped_count, error_count, total_chars
 
@@ -198,12 +297,26 @@ def build_text_from_files(
 
 def build_markdown_from_files(
     folder_path: str,
-    file_list: list,
+    file_list: List[Dict[str, Any]],
     include_skipped: bool = False,
     language: str = "en",
     verbose: bool = True,
-) -> tuple:
-    """Generate Markdown output with code blocks per file."""
+) -> Tuple[str, int, int, int, int]:
+    """Generate Markdown output with syntax-highlighted code blocks per file.
+
+    Each file is rendered as a Markdown section with metadata (size, chars)
+    and its content wrapped in a fenced code block with an appropriate language tag.
+
+    Args:
+        folder_path: Absolute path to the source folder.
+        file_list: List of file info dicts from collect_files_info().
+        include_skipped: If True, include skipped-file annotations in output.
+        language: ISO 639-1 language code for labels ('zh' or 'en').
+        verbose: If True, print skip/error summaries to stdout.
+
+    Returns:
+        Tuple of (markdown_text, parsed_count, skipped_count, error_count, total_chars).
+    """
     from src.parser.dispatcher import parse_file
 
     labels = _txt_labels(language)
@@ -212,7 +325,7 @@ def build_markdown_from_files(
     parsed_count = 0
     skipped_count = 0
     error_count = 0
-    skip_reasons: dict[str, int] = {}
+    skip_reasons: Dict[str, int] = {}
 
     for finfo in file_list:
         if not finfo['supported']:
@@ -232,7 +345,12 @@ def build_markdown_from_files(
                 skip_reasons['parser returned no content'] = skip_reasons.get('parser returned no content', 0) + 1
                 continue
             text = (result.get("text") or "").strip()
-        except Exception:
+        except (OSError, IOError) as e:
+            logger.debug("I/O error parsing %s: %s", finfo['rel_path'], e)
+            error_count += 1
+            continue
+        except Exception as e:
+            logger.debug("Unexpected error parsing %s: %s", finfo['rel_path'], e)
             error_count += 1
             continue
 
@@ -268,7 +386,18 @@ def build_markdown_from_files(
 
 
 def _md_lang_tag(ext: str) -> str:
-    """Map file extension to Markdown code block language tag."""
+    """Map file extension to a Markdown fenced-code-block language tag.
+
+    The mapping is based on common conventions for syntax highlighting
+    in Markdown renderers (GitHub, VS Code, etc.). Unknown extensions
+    return an empty string (no language tag).
+
+    Args:
+        ext: Lowercase file extension including dot (e.g., '.py').
+
+    Returns:
+        Language tag string for the Markdown code fence, or '' if unknown.
+    """
     return {
         '.py': 'python', '.pyw': 'python', '.js': 'javascript', '.jsx': 'jsx',
         '.ts': 'typescript', '.tsx': 'tsx', '.html': 'html', '.css': 'css',
@@ -289,13 +418,28 @@ def _md_lang_tag(ext: str) -> str:
 
 def build_html_from_files(
     folder_path: str,
-    file_list: list,
+    file_list: List[Dict[str, Any]],
     output_path: str,
     include_skipped: bool = True,
     language: str = "en",
     verbose: bool = True,
-) -> tuple:
-    """Generate single-page HTML with all file contents (legacy, not recommended)."""
+) -> Tuple[str, int, int, int, int]:
+    """Generate single-page HTML with all file contents (legacy, not recommended).
+
+    Note: This is a legacy function. For new development, prefer the portal
+    generator (src/generator/portal.py) which produces split-page output.
+
+    Args:
+        folder_path: Absolute path to the source folder.
+        file_list: List of file info dicts from collect_files_info().
+        output_path: Not used in output generation (legacy parameter).
+        include_skipped: If True, render skipped-file entries.
+        language: ISO 639-1 language code ('zh' for Chinese).
+        verbose: If True, print skip/error summaries to stdout.
+
+    Returns:
+        Tuple of (html_text, parsed_count, skipped_count, error_count, total_chars).
+    """
     from src.parser.dispatcher import parse_file
 
     articles = []
@@ -303,7 +447,7 @@ def build_html_from_files(
     parsed_count = 0
     skipped_count = 0
     error_count = 0
-    skip_reasons: dict[str, int] = {}
+    skip_reasons: Dict[str, int] = {}
 
     for finfo in file_list:
         if not finfo['supported']:
@@ -324,7 +468,12 @@ def build_html_from_files(
                 skip_reasons['parser returned no content'] = skip_reasons.get('parser returned no content', 0) + 1
                 continue
             text = (result.get("text") or "").strip()
-        except Exception:
+        except (OSError, IOError) as e:
+            logger.debug("I/O error parsing %s: %s", finfo['rel_path'], e)
+            error_count += 1
+            continue
+        except Exception as e:
+            logger.debug("Unexpected error parsing %s: %s", finfo['rel_path'], e)
             error_count += 1
             continue
 
