@@ -6,17 +6,14 @@ malformed Office file resilience, and large-file chunking behavior.
 """
 
 import os
-import io
 import tempfile
-import struct
 import zipfile
 import threading
 import pytest
 
 # ── Imports under test ──
 from src.parser.dispatcher import parse_file
-from src.scanner import walk_files, collect_files_info
-from src.chunker import DEFAULT_CHUNK_SIZE
+from src.scanner import walk_files
 
 
 # ═══════════════════════════════════════════════════════════════════

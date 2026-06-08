@@ -74,7 +74,7 @@ def _get_mime_checker() -> Tuple[Optional[Any], tuple, frozenset, frozenset]:
     # Try to use centralized constants first
     try:
         from src.constants import (
-            TEXT_MIME_PREFIXES, EXACT_MIME_SET, OFFICE_MIME_SET
+            TEXT_MIME_PREFIXES, EXACT_MIME_SET
         )
         prefixes = tuple(TEXT_MIME_PREFIXES)
         exact = frozenset(EXACT_MIME_SET)
