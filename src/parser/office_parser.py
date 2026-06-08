@@ -142,7 +142,7 @@ def _convert_via_libreoffice(src_path: str, target_ext: str) -> Optional[str]:
                 if os.path.getsize(converted) == 0:
                     logger.warning("LibreOffice produced empty file for %s (0 bytes)", src_path)
                     return None
-                logger.info("LibreOffice converted %s -> %s (%d bytes)", src_path, converted, os.path.getsize(converted))
+                logger.debug("LibreOffice converted %s -> %s (%d bytes)", src_path, converted, os.path.getsize(converted))
                 return converted
             logger.warning("Converted file not found: %s", converted)
             return None

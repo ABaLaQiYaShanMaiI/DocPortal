@@ -188,8 +188,15 @@ DEFAULT_MAX_CHARS = 1_000_000
 # Per-file character limit (200K chars). Most source files are well under this;
 # it mainly guards against abnormally large generated files or data dumps.
 DEFAULT_MAX_CHARS_PER_FILE = 200_000
-# Chunk size for split output mode (50K chars ≈ ~10K tokens for most LLMs).
-# This allows each chunk to be separately submitted within tight context limits.
+# Chunk size for portal-mode per-file page generation.
+# 50K chars ≈ ~10K tokens for most LLMs (roughly 5 chars/token for code).
+# This value was chosen as a practical balance:
+# - Small enough to fit within tight context windows alongside user instructions
+#   and model responses, even for smaller models (e.g., GPT-3.5 4K context)
+# - Large enough to accommodate most individual source files in their entirety
+#   without splitting pages mid-file
+# - Note: The chunker module (src/chunker/__init__.py) uses a separate default of
+#   500K chars for batch-split mode, where files are aggregated rather than paginated
 DEFAULT_CHUNK_SIZE = 50_000
 # Maximum files to process (prevents runaway scans on huge directories).
 DEFAULT_MAX_FILES = 500
