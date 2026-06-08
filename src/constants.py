@@ -1,6 +1,7 @@
 """
 FolderKnowledgeSiteGeneratorForAI — Shared Constants
 """
+from __future__ import annotations
 
 # ── Directory filter rules ──
 # Directories to always skip during scanning
