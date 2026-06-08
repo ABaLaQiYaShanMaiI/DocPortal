@@ -429,19 +429,29 @@ lines = []
 lines: list[str] = []
 ```
 
-**3. 类型不兼容赋值**
+**3. 类型注解时机问题（导入前使用）**
 
-赋值类型必须与变量声明的类型兼容：
+类型注解在定义时求值，必须确保被引用的类型已定义。对于条件导入的模块（如可选依赖），使用 `TYPE_CHECKING` 条件导入：
 
 ```python
-# ❌ 错误：注解为 Magic，赋值 None 不兼容
-from magic import Magic
-_magic: Magic = None
+# ❌ 错误：magic 在类型注解时尚未导入
+_magic: Optional[magic.Magic] = None
+try:
+    import magic
 
-# ✅ 正确：声明为 Optional[Magic]
-from typing import Optional
-_magic: Optional[Magic] = None
+# ✅ 正确：使用 TYPE_CHECKING + 字符串注解
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from magic import Magic
+
+_magic: Optional['Magic'] = None  # 字符串形式，延迟求值
+try:
+    import magic
+    _magic = magic.Magic(mime=True)
 ```
+
+**为什么需要字符串形式**：`TYPE_CHECKING` 在运行时为 `False`，运行时 `Magic` 未导入，字符串形式避免了 `NameError`。
 
 > 💡 **提示**：项目根目录的 `mypy.ini` 已配置 `ignore_missing_imports = true` 和模块级忽略规则，可处理 `tkinterdnd2` 等可选依赖的导入问题。
 

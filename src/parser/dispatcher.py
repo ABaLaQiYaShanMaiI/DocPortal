@@ -7,7 +7,14 @@ MIME type detection, with extension-based fallback.
 
 import os
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
+
+# ── TYPE_CHECKING conditional imports ──
+# These imports are only evaluated by type checkers (mypy, ruff).
+# At runtime, TYPE_CHECKING is False, so these are never executed.
+# This avoids ImportError when magic is not installed.
+if TYPE_CHECKING:
+    from magic import Magic
 
 from .text_parser import parse_text
 from .pdf_parser import parse_pdf
@@ -21,7 +28,8 @@ logger = logging.getLogger(__name__)
 #   - AttributeError: version mismatch (e.g., python-magic d0.4.24 lacks Magic)
 #   - OSError/FileNotFoundError: shared library (libmagic) not found on system
 #   - Various low-level errors: ctypes.CDLL error on Windows (bundled magic1.dll missing/corrupt)
-_magic: Optional[magic.Magic] = None
+# Use string annotation to defer evaluation — Magic is only available under TYPE_CHECKING.
+_magic: Optional['Magic'] = None
 _magic_available = False
 
 try:
