@@ -238,22 +238,16 @@ def main():
         if max_cpf == 0:
             max_cpf = None
         
-        if args.single_page:
-            result = generate_portal(
-                folder_path=args.folder,
-                output_dir=output_dir,
-                include_skipped=not args.no_skipped,
-                max_chars_per_file=max_cpf,
-                language=args.lang,
-            )
-        else:
-            result = generate_portal_split(
-                folder_path=args.folder,
-                output_dir=output_dir,
-                include_skipped=not args.no_skipped,
-                max_chars_per_file=max_cpf,
-                language=args.lang,
-            )
+        # Portal mode defaults to single-page (all content in index.html).
+        # The --single-page flag is accepted for explicit clarity but does not change behavior.
+        # Use generate_portal_split() programmatically for split-file portal output.
+        result = generate_portal(
+            folder_path=args.folder,
+            output_dir=output_dir,
+            include_skipped=not args.no_skipped,
+            max_chars_per_file=max_cpf,
+            language=args.lang,
+        )
 
         index_file = result.get("index_file")
         if index_file and os.path.exists(index_file):

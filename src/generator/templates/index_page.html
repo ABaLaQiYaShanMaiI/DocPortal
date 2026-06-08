@@ -243,6 +243,15 @@
 
   .copy-file-btn.copied { background: #34a853; }
 
+  /* Compact code display for AI text extraction */
+  .doc-content pre {
+    font-size: 3px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow-x: hidden;
+    line-height: 1.2;
+  }
+
   @media print {
     body { background: white; color: black; padding: 0.2in; }
     .portal-header { background: #1a73e8 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -756,6 +765,11 @@ function jumpToFile(b64) {
     }
   }
   console.warn('Could not find file block for:', filename);
+}
+
+// ── Copy file content function (alias for copyCode, used by copy button onclick) ──
+function copyFileContent(btn) {
+  copyCode(btn);
 }
 
 // ── Copy file content function (consistent with subpage.html's copyCode) ──

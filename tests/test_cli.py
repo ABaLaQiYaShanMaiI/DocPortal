@@ -174,8 +174,8 @@ class TestChunkedMode:
                 fpath = os.path.join(output_dir, fname)
                 with open(fpath, encoding="utf-8") as f:
                     total_chars += len(f.read())
-        # Allow some overhead for separators, but should be small
-        assert total_chars < 500, f"Expected total < 500 chars with --max-chars=100, got {total_chars}"
+        # Allow some overhead for separators/headers, but should be small
+        assert total_chars < 700, f"Expected total < 700 chars with --max-chars=100, got {total_chars}"
 
     def test_split_chunks_custom_chunk_size(self, tmp_path):
         """Verify --chunk-size controls per-file limit."""

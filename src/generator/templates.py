@@ -118,7 +118,7 @@ def build_file_content_blocks(docs_texts: list) -> str:
             f'    <span class="file-size">{size_hr_escaped}</span>\n'
             f'    <span class="file-chars">{size_str} chars</span>\n'
             f'    <span class="file-tags">{tags_html}</span>\n'
-            f'    <button class="copy-file-btn" data-file-index="{i}" onclick="copyCode(this)" title="Copy this file">📋 Copy</button>\n'
+    f'    <button class="copy-file-btn" data-file-index="{i}" onclick="copyFileContent(this)" title="Copy this file">📋 Copy</button>\n'
             f'  </div>\n'
             f'  <div class="doc-content">\n'
             f'    <pre id="file-content-{i}"><code>{escaped_text}</code></pre>\n'
@@ -301,7 +301,7 @@ def build_subpage_html(
     return result
 
 
-def build_file_tree_split_html(folder_path: str, parsed_docs: list) -> str:
+def build_file_tree_split_html(folder_path: str, parsed_docs: list, include_skipped: bool = True) -> str:
     """Build a collapsible file tree where each file links to its subpage.
 
     Features:
@@ -313,6 +313,7 @@ def build_file_tree_split_html(folder_path: str, parsed_docs: list) -> str:
     Args:
         folder_path: Root folder to scan
         parsed_docs: List of parsed doc dicts with 'title' (rel_path) key
+        include_skipped: If True, show scanner-filtered files (e.g. .bin) in tree as skipped.
 
     Returns:
         HTML string for the collapsible file tree
@@ -341,7 +342,9 @@ def build_file_tree_split_html(folder_path: str, parsed_docs: list) -> str:
                 items.append(('dir', name, full_path, rel_path))
             else:
                 if _should_filter_file(rel_path):
-                    continue
+                    if not include_skipped:
+                        continue
+                    # include_skipped=True: show filtered files as non-parsed
                 items.append(('file', name, full_path, rel_path))
 
         dirs = [(n, f, r) for t, n, f, r in items if t == 'dir']
@@ -440,6 +443,94 @@ def build_search_index_json(docs_texts: list) -> str:
             # but increased preview provides significantly better search quality.
         })
     return json.dumps(index_data, ensure_ascii=False)
+
+
+def wrap_skipped_html(
+    title: str,
+    folder_name: str,
+    file_size_hr: str,
+    filepath: str,
+) -> str:
+    """Generate an HTML page for a file that was skipped (unsupported format).
+
+    Args:
+        title: Display title / relative path of the skipped file.
+        folder_name: Source folder name.
+        file_size_hr: Human-readable file size.
+        filepath: Full path to the skipped file.
+
+    Returns:
+        Complete HTML string for the skipped-file notice page.
+    """
+    from html import escape
+
+    escaped_title = escape(title)
+    escaped_folder = escape(folder_name)
+    escaped_filepath = escape(filepath)
+    escaped_size = escape(file_size_hr)
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{escaped_title} — {escaped_folder} (Skipped)</title>
+<style>
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 900px; margin: 0 auto; padding: 24px 20px;
+    background: #f8f9fa; color: #333; line-height: 1.7;
+  }}
+  .skip-notice {{
+    background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px;
+    padding: 24px; text-align: center; margin-bottom: 20px;
+  }}
+  .skip-notice .icon {{ font-size: 3em; margin-bottom: 12px; }}
+  .skip-notice h2 {{ color: #856404; margin-bottom: 8px; }}
+  .skip-notice p {{ color: #6c757d; font-size: 0.95em; line-height: 1.6; }}
+  .skip-notice .details {{
+    margin-top: 12px; font-size: 0.85em; color: #888;
+    background: #f8f9fa; border-radius: 6px; padding: 10px 14px;
+    text-align: left;
+  }}
+  .footer {{
+    text-align: center; color: #999; font-size: 0.82em;
+    margin-top: 24px; padding-top: 16px; border-top: 1px solid #e0e0e0;
+  }}
+  a {{ color: #1a73e8; text-decoration: none; }}
+  a:hover {{ text-decoration: underline; }}
+  @media (prefers-color-scheme: dark) {{
+    body {{ background: #1a1a2e; color: #e0e0e0; }}
+    .skip-notice {{ background: #2a2a1e; border-color: #5a5a3e; }}
+    .skip-notice h2 {{ color: #ffc107; }}
+    .skip-notice p {{ color: #aaa; }}
+    .skip-notice .details {{ background: #1a1a2e; color: #888; }}
+    .footer {{ border-top-color: #333; color: #666; }}
+  }}
+</style>
+</head>
+<body>
+<a href="index.html">⬅ Back to Index</a>
+
+<div class="skip-notice">
+  <div class="icon">⏭️</div>
+  <h2>Unsupported File Type</h2>
+  <p>
+    This file format is not supported by FolderKnowledgeSiteGeneratorForAI and has been skipped.<br>
+    To parse it, convert to a supported format (.txt, .md, .pdf, .docx, .pptx, .xlsx, etc.).
+  </p>
+  <div class="details">
+    <strong>Path:</strong> {escaped_filepath}<br>
+    <strong>Size:</strong> {escaped_size}
+  </div>
+</div>
+
+<div class="footer">
+  <p>Generated by FolderKnowledgeSiteGeneratorForAI | {escaped_folder}</p>
+</div>
+</body>
+</html>"""
 
 
 def wrap_index_html(

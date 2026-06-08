@@ -133,20 +133,22 @@ def escape_html(s: str) -> str:
 #  File tree builder
 # ============================================================
 
-def build_file_tree_html(folder_path: str, parsed_files: Optional[set] = None) -> str:
+def build_file_tree_html(folder_path: str, parsed_files: Optional[set] = None, include_skipped: bool = True) -> str:
     """Build an ASCII-tree diagram of the folder structure.
 
     Args:
         folder_path: Root folder to scan
         parsed_files: Set of relative paths that were successfully parsed.
                       Files not in this set will appear grey and unclickable.
+        include_skipped: If True, show filtered/skipped files in the tree.
+                         If False, omit them entirely.
     """
     lines: list[str] = []
-    _walk_and_render(folder_path, folder_path, lines, prefix="", parsed_files=parsed_files or set())
+    _walk_and_render(folder_path, folder_path, lines, prefix="", parsed_files=parsed_files or set(), include_skipped=include_skipped)
     return '\n'.join(lines)
 
 
-def _walk_and_render(root: str, dirpath: str, lines: list, prefix: str, parsed_files: Optional[set] = None):
+def _walk_and_render(root: str, dirpath: str, lines: list, prefix: str, parsed_files: Optional[set] = None, include_skipped: bool = True):
     """Recursively walk directory and append tree lines."""
     if parsed_files is None:
         parsed_files = set()
@@ -166,7 +168,7 @@ def _walk_and_render(root: str, dirpath: str, lines: list, prefix: str, parsed_f
                 continue
             items.append(('dir', name, full_path, rel_path))
         else:
-            if _should_filter_file(rel_path):
+            if not include_skipped and _should_filter_file(rel_path):
                 continue
             items.append(('file', name, full_path, rel_path))
 
@@ -186,7 +188,7 @@ def _walk_and_render(root: str, dirpath: str, lines: list, prefix: str, parsed_f
                 f'<span class="tree-folder-name">📁 {name}</span>'
                 f'</li>'
             )
-            _walk_and_render(root, full_path, lines, child_prefix, parsed_files)
+            _walk_and_render(root, full_path, lines, child_prefix, parsed_files, include_skipped)
         else:
             size = os.path.getsize(full_path)
             size_hr = human_readable_size(size)
@@ -246,7 +248,20 @@ def generate_portal(
     all_files = list(walk_files(folder_path))
     total_files = len(all_files)
 
-    if total_files == 0:
+    # Count files filtered by scanner (e.g. .bin, .exe) not yielded by walk_files —
+    # these are "skipped" from the portal's perspective.
+    _walked_set = {fp for fp, _ in all_files}
+    _scanner_filtered_count = 0
+    for _dp, _dns, _fns in os.walk(folder_path):
+        _dns[:] = [d for d in _dns if d not in _FILTER_DIRS and not d.startswith('.')]
+        for _fn in _fns:
+            _fp = os.path.join(_dp, _fn)
+            if _fp not in _walked_set:
+                _bn = os.path.basename(_fn)
+                if not _bn.startswith('.') and _bn not in ('Thumbs.db', 'desktop.ini', '.DS_Store'):
+                    _scanner_filtered_count += 1
+
+    if total_files == 0 and _scanner_filtered_count == 0:
         logger.warning("No parseable files found in %s", folder_path)
         return {
             "doc_count": 0,
@@ -265,7 +280,7 @@ def generate_portal(
     docs_texts = []
     total_chars = 0
     parsed_count = 0
-    skipped_count = 0
+    skipped_count = _scanner_filtered_count  # start with scanner-filtered count
     error_count = 0
     skip_by_reason: dict[str, int] = {}
 
@@ -380,9 +395,7 @@ def generate_portal(
         print(f"  [Error Summary] {error_count} file(s) failed to parse")
 
     parsed_paths = {d["file"] for d in docs_meta if not d.get("skipped")}
-    # When include_skipped=False, still include the file tree but mark unparsed files as greyed-out.
-    # The build_file_tree_html function already handles this via the parsed_files param.
-    file_tree_html = build_file_tree_html(folder_path, parsed_files=parsed_paths)
+    file_tree_html = build_file_tree_html(folder_path, parsed_files=parsed_paths, include_skipped=include_skipped)
     file_contents_html = build_file_content_blocks(docs_texts)
 
     if docs_meta or file_tree_html:
@@ -459,7 +472,20 @@ def generate_portal_split(
     all_files = list(walk_files(folder_path))
     total_files = len(all_files)
 
-    if total_files == 0:
+    # Count files filtered by scanner (e.g. .bin, .exe) not yielded by walk_files —
+    # these are "skipped" from the portal's perspective.
+    _walked_set = {fp for fp, _ in all_files}
+    _scanner_filtered_count = 0
+    for _dp, _dns, _fns in os.walk(folder_path):
+        _dns[:] = [d for d in _dns if d not in _FILTER_DIRS and not d.startswith('.')]
+        for _fn in _fns:
+            _fp = os.path.join(_dp, _fn)
+            if _fp not in _walked_set:
+                _bn = os.path.basename(_fn)
+                if not _bn.startswith('.') and _bn not in ('Thumbs.db', 'desktop.ini', '.DS_Store'):
+                    _scanner_filtered_count += 1
+
+    if total_files == 0 and _scanner_filtered_count == 0:
         logger.warning("No parseable files found in %s", folder_path)
         return {
             "doc_count": 0,
@@ -478,7 +504,7 @@ def generate_portal_split(
     docs_meta = []
     total_chars = 0
     parsed_count = 0
-    skipped_count = 0
+    skipped_count = _scanner_filtered_count  # start with scanner-filtered count
     error_count = 0
     skip_by_reason: dict[str, int] = {}
 
@@ -591,9 +617,7 @@ def generate_portal_split(
     docs_texts.sort(key=lambda d: d.get("title", "").lower())
 
     # ── Build index page ──
-    # When include_skipped=False, still include the file tree but mark unparsed files as greyed-out.
-    # The build_file_tree_split_html function handles this via parsed_docs param.
-    file_tree_html = build_file_tree_split_html(folder_path, docs_texts)
+    file_tree_html = build_file_tree_split_html(folder_path, docs_texts, include_skipped=include_skipped)
 
     # Build search index JSON
     search_index_json = build_search_index_json(docs_texts)
@@ -611,10 +635,6 @@ def generate_portal_split(
     )
 
     # Inject search index JSON into the index page before closing </body>
-    # The template's built-in split-mode JS already handles search filtering
-    # and tag cloud interaction. We only need to provide the SEARCH_INDEX data
-    # for enhanced tree-item search that matches tags and preview text.
-    # The injected script ENHANCES (does not replace) the template's search.
     search_script = (
         f'<script>\n'
         f'// ── Search index data for split-file mode ──\n'
@@ -626,9 +646,6 @@ def generate_portal_split(
     # Insert search script before </body>
     index_html = index_html.replace('</body>', search_script + '\n</body>')
 
-    # Use a fixed "index.html" as the entry filename for split mode,
-    # so that HTTP servers can find it by default and subpage back-links
-    # (href="../index.html") work correctly.
     index_filename = "index.html"
     index_path = os.path.join(output_dir, index_filename)
     with open(index_path, 'w', encoding='utf-8') as f:
