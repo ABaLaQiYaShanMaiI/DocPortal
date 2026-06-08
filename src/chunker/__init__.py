@@ -20,7 +20,7 @@ import os
 import logging
 from html import escape
 from datetime import datetime
-from typing import Optional, List, Dict, Tuple, Any
+from typing import Optional, List, Dict, Tuple, Any, TypedDict
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,14 @@ try:
     from src.constants import SEPARATOR_LINE
 except ImportError:
     SEPARATOR_LINE = "=" * 60  # fallback
+
+class FileEntry(TypedDict):
+    """Type for a single file entry in chunking operations."""
+    rel_path: str
+    text: str
+    size_hr: str
+    size: int
+
 
 # ── Default chunk size: 500,000 characters ──
 # 500K chars ≈ ~100K tokens for most LLMs (roughly 5 chars/token for code).
@@ -47,7 +55,7 @@ class FileChunk:
     def __init__(self, chunk_index: int, chunk_size: int):
         self.index = chunk_index  # 0-based
         self.chunk_size = chunk_size  # max chars for this chunk
-        self.files: List[Dict[str, Any]] = []  # list of dicts: {rel_path, text, size, size_hr}
+        self.files: List[FileEntry] = []
         self.accumulated_chars: int = 0
 
     @property
@@ -120,7 +128,7 @@ def _parse_single_file(full_path: str, rel_path: str) -> Optional[str]:
         return None
 
 
-def _collect_files(folder_path: str, max_chars: Optional[int] = None) -> Tuple[List[Dict[str, Any]], int]:
+def _collect_files(folder_path: str, max_chars: Optional[int] = None) -> Tuple[List[FileEntry], int]:
     """Walk folder_path, collect file info, and parse text.
 
     Args:
@@ -136,7 +144,7 @@ def _collect_files(folder_path: str, max_chars: Optional[int] = None) -> Tuple[L
 
     # Collect ALL entries first (without applying max_chars limit)
     # so that sorting happens before truncation.
-    raw_entries: List[Dict[str, Any]] = []
+    raw_entries: List[FileEntry] = []
     total_size = 0
 
     for full_path, rel_path in walk_files(folder_path):
@@ -149,6 +157,7 @@ def _collect_files(folder_path: str, max_chars: Optional[int] = None) -> Tuple[L
             "rel_path": rel_path,
             "text": text,
             "size_hr": size_hr,
+            "size": len(text),
         })
         total_size += len(text)
 
@@ -156,7 +165,7 @@ def _collect_files(folder_path: str, max_chars: Optional[int] = None) -> Tuple[L
     raw_entries.sort(key=lambda e: e["rel_path"].lower())
 
     # Now apply max_chars global limit on sorted entries
-    entries: List[Dict[str, Any]] = []
+    entries: List[FileEntry] = []
     accumulated = 0
     limit_reached = False
 
@@ -180,6 +189,7 @@ def _collect_files(folder_path: str, max_chars: Optional[int] = None) -> Tuple[L
             "rel_path": entry["rel_path"],
             "text": text,
             "size_hr": entry["size_hr"],
+            "size": len(text),
         })
         accumulated += len(text)
 
@@ -187,7 +197,7 @@ def _collect_files(folder_path: str, max_chars: Optional[int] = None) -> Tuple[L
 
 
 def chunk_files(
-    entries: List[Dict[str, Any]],
+    entries: List[FileEntry],
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     force_split: bool = False,
 ) -> List[FileChunk]:
