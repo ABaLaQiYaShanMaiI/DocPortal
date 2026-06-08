@@ -11,7 +11,7 @@ echo.
 REM -- Step 1: Quick Python check --
 where python >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Python not found. Please install Python 3.8+.
+    echo [ERROR] Python not found. Please install Python 3.10+.
     pause
     exit /b 1
 )

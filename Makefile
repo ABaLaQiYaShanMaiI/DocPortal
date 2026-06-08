@@ -17,7 +17,7 @@ check:
 	ruff format --check src/ tests/
 	@echo ""
 	@echo "=== mypy ==="
-	mypy src/ --config-file mypy.ini
+	mypy src/ --config-file pyproject.toml
 	@echo ""
 	@echo "=== pytest ==="
 	pytest tests/ -v
@@ -29,7 +29,7 @@ lint:
 	ruff check src/ tests/
 
 type:
-	mypy src/ --config-file mypy.ini
+	mypy src/ --config-file pyproject.toml
 
 test:
 	pytest tests/ -v

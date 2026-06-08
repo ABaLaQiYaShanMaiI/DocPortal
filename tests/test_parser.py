@@ -1,6 +1,7 @@
 """
 Tests for the parser module.
 """
+
 import os
 import tempfile
 import pytest
@@ -30,6 +31,7 @@ def test_nonexistent_file():
 
 try:
     from src.constants import SUPPORTED_TEXT_EXTS
+
     _HAS_CONSTANTS = True
 except ImportError:
     _HAS_CONSTANTS = False
@@ -43,7 +45,7 @@ def _get_supported_text_extensions() -> set:
     if not _HAS_CONSTANTS:
         pytest.skip("src.constants not available")
 
-    skip_exts = {'.pdf', '.docx', '.pptx', '.xlsx'}
+    skip_exts = {".pdf", ".docx", ".pptx", ".xlsx"}
 
     pure_text_exts = set()
     for ext in sorted(SUPPORTED_TEXT_EXTS):
@@ -59,17 +61,18 @@ def test_constants_integration_imports():
         pytest.skip("src.constants not available")
 
     from src.constants import SUPPORTED_TEXT_EXTS as exts
+
     assert len(exts) > 50, f"Expected many supported extensions, got {len(exts)}"
-    assert '.txt' in exts
-    assert '.py' in exts
-    assert '.cs' in exts
-    assert '.xaml' in exts
-    assert '.md' in exts
+    assert ".txt" in exts
+    assert ".py" in exts
+    assert ".cs" in exts
+    assert ".xaml" in exts
+    assert ".md" in exts
 
 
-@pytest.mark.parametrize("ext", sorted(
-    _get_supported_text_extensions() if _HAS_CONSTANTS else ['.txt', '.py', '.cs', '.xaml', '.json']
-))
+@pytest.mark.parametrize(
+    "ext", sorted(_get_supported_text_extensions() if _HAS_CONSTANTS else [".txt", ".py", ".cs", ".xaml", ".json"])
+)
 def test_all_text_extensions_parseable(tmp_path, ext):
     """Verify dispatcher can recognize and parse files with ALL supported text extensions.
 
@@ -100,12 +103,13 @@ def test_magic_fallback():
     around magic import. This test validates the module structure is intact.
     """
     from src.parser.dispatcher import _magic_available
+
     # _magic should be either None or a valid Magic object
     # _magic_available should be a boolean
     assert isinstance(_magic_available, bool)
 
 
-@pytest.mark.parametrize("ext", ['.cs', '.xaml', '.sln', '.csproj', '.swift', '.kt', '.rs'])
+@pytest.mark.parametrize("ext", [".cs", ".xaml", ".sln", ".csproj", ".swift", ".kt", ".rs"])
 def test_code_extensions_parsed_as_text(tmp_path, ext):
     """Specifically verify code-file extensions that were historically problematic
     (magic returns application/octet-stream for .cs on Windows) are parsed as text."""
@@ -113,12 +117,12 @@ def test_code_extensions_parsed_as_text(tmp_path, ext):
     filepath = os.path.join(str(tmp_path), fname)
 
     content_map = {
-        '.xaml': '<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"><Grid/></Window>',
-        '.sln': '\nMicrosoft Visual Studio Solution File, Format Version 12.00\n',
-        '.swift': 'import Foundation\nlet x = 42\n',
-        '.kt': 'package test\nfun main() { println(42) }\n',
-        '.rs': 'fn main() { println!("hello"); }\n',
-        '.cs': 'using System; class Test { static void Main() { } }',
+        ".xaml": '<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"><Grid/></Window>',
+        ".sln": "\nMicrosoft Visual Studio Solution File, Format Version 12.00\n",
+        ".swift": "import Foundation\nlet x = 42\n",
+        ".kt": "package test\nfun main() { println(42) }\n",
+        ".rs": 'fn main() { println!("hello"); }\n',
+        ".cs": "using System; class Test { static void Main() { } }",
     }
     content = content_map.get(ext, f"// test content for {ext} file\nint x = 42;")
 

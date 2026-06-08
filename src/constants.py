@@ -10,9 +10,11 @@ Design notes:
 - All *_MAP dictionaries are static lookup tables.
 - FileScanStatus enum provides the single source of truth for file disposition.
 """
+
 from __future__ import annotations
 
 from enum import Enum
+
 
 # ── File Scan Status Enum ──
 # Unified file disposition model. Every file that passes through the scanner
@@ -29,42 +31,101 @@ class FileScanStatus(Enum):
     - This eliminates the fragile "two-pass" pattern where skipped files
       were inferred by comparing walk_files output against os.walk output.
     """
+
     PARSED = "parsed"
-    FILTERED = "filtered"          # Excluded by filter rules (extension, dir, hidden)
-    UNSUPPORTED = "unsupported"    # MIME/extension not recognized
-    EMPTY = "empty"                # Parsed successfully but content is empty
-    ERROR = "error"                # Parse failed with exception
-    OVERSIZED = "oversized"        # File exceeds size limits
+    FILTERED = "filtered"  # Excluded by filter rules (extension, dir, hidden)
+    UNSUPPORTED = "unsupported"  # MIME/extension not recognized
+    EMPTY = "empty"  # Parsed successfully but content is empty
+    ERROR = "error"  # Parse failed with exception
+    OVERSIZED = "oversized"  # File exceeds size limits
+
 
 # ── Directory filter rules ──
 # Directories to always skip during scanning
-FILTER_DIRS = frozenset({
-    '__pycache__', '.git', '.svn', '.hg', '.idea', '.vscode',
-    'node_modules', 'bower_components', '.venv', 'venv', 'env',
-    '.tox', '.eggs', 'eggs', 'dist', 'build', '.next', '.nuxt',
-    '__MACOSX', '.DS_Store',
-})
+FILTER_DIRS = frozenset(
+    {
+        "__pycache__",
+        ".git",
+        ".svn",
+        ".hg",
+        ".idea",
+        ".vscode",
+        "node_modules",
+        "bower_components",
+        ".venv",
+        "venv",
+        "env",
+        ".tox",
+        ".eggs",
+        "eggs",
+        "dist",
+        "build",
+        ".next",
+        ".nuxt",
+        "__MACOSX",
+        ".DS_Store",
+    }
+)
 
 # File patterns to always skip (applied to rel_path)
-FILTER_FILES = frozenset({
-    '.DS_Store', 'Thumbs.db', 'desktop.ini',
-})
+FILTER_FILES = frozenset(
+    {
+        ".DS_Store",
+        "Thumbs.db",
+        "desktop.ini",
+    }
+)
 
 # File extensions to always skip
-FILTER_EXTS = frozenset({
-    '.exe', '.dll', '.so', '.dylib', '.bin', '.dat',
-    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.svg',
-    '.mp3', '.wav', '.ogg', '.flac', '.mp4', '.avi', '.mkv',
-    '.zip', '.tar', '.gz', '.bz2', '.rar', '.7z',
-    '.pyc', '.pyo', '.pyd',
-    '.o', '.obj', '.lib', '.a', '.class', '.jar',
-    '.ttf', '.otf', '.woff', '.woff2', '.eot',
-})
+FILTER_EXTS = frozenset(
+    {
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        ".bin",
+        ".dat",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".svg",
+        ".mp3",
+        ".wav",
+        ".ogg",
+        ".flac",
+        ".mp4",
+        ".avi",
+        ".mkv",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".rar",
+        ".7z",
+        ".pyc",
+        ".pyo",
+        ".pyd",
+        ".o",
+        ".obj",
+        ".lib",
+        ".a",
+        ".class",
+        ".jar",
+        ".ttf",
+        ".otf",
+        ".woff",
+        ".woff2",
+        ".eot",
+    }
+)
 
 
 def should_filter_dir(dirname: str) -> bool:
     """Check if a directory should be skipped during scanning."""
-    return dirname in FILTER_DIRS or dirname.startswith('.')
+    return dirname in FILTER_DIRS or dirname.startswith(".")
 
 
 def should_filter_file(rel_path: str) -> bool:
@@ -77,90 +138,201 @@ def should_filter_file(rel_path: str) -> bool:
     - Inside hidden directories
     """
     import os
+
     basename = os.path.basename(rel_path)
     if basename in FILTER_FILES:
         return True
-    if basename.startswith('.'):
+    if basename.startswith("."):
         return True
     ext = os.path.splitext(basename)[1].lower()
     if ext in FILTER_EXTS:
         return True
     # Check if any path component is a hidden directory
-    parts = rel_path.replace('\\', '/').split('/')
+    parts = rel_path.replace("\\", "/").split("/")
     for part in parts[:-1]:  # Exclude the filename itself
-        if part in FILTER_DIRS or part.startswith('.'):
+        if part in FILTER_DIRS or part.startswith("."):
             return True
     return False
 
 
 # ── Supported text file extensions ──
-SUPPORTED_TEXT_EXTS = frozenset({
-    # Programming languages
-    '.py', '.js', '.jsx', '.ts', '.tsx', '.java', '.c', '.cpp', '.h', '.hpp',
-    '.cs', '.go', '.rs', '.rb', '.php', '.swift', '.kt', '.scala', '.pl',
-    '.pm', '.lua', '.r', '.m', '.mm',
-    # Web
-    '.html', '.htm', '.css', '.scss', '.sass', '.less', '.vue', '.svelte',
-    '.xml', '.svg', '.json', '.yaml', '.yml',
-    # Config & Scripts
-    '.ini', '.cfg', '.conf', '.toml', '.env', '.editorconfig',
-    '.gitignore', '.dockerfile',
-    '.sh', '.bat', '.ps1', '.bash', '.zsh',
-    # Markup & Docs
-    '.md', '.mdx', '.rst', '.tex', '.txt', '.log',
-    '.csv', '.tsv',
-    # .NET project files (CS/VB project, solution, XAML)
-    '.csproj', '.fsproj', '.vbproj', '.sln', '.xaml', '.axaml',
-    # Training config
-    '.yaml', '.yml',
-    # Data
-    '.sql', '.sqlite',
-})
+SUPPORTED_TEXT_EXTS = frozenset(
+    {
+        # Programming languages
+        ".py",
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".java",
+        ".c",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".cs",
+        ".go",
+        ".rs",
+        ".rb",
+        ".php",
+        ".swift",
+        ".kt",
+        ".scala",
+        ".pl",
+        ".pm",
+        ".lua",
+        ".r",
+        ".m",
+        ".mm",
+        # Web
+        ".html",
+        ".htm",
+        ".css",
+        ".scss",
+        ".sass",
+        ".less",
+        ".vue",
+        ".svelte",
+        ".xml",
+        ".svg",
+        ".json",
+        ".yaml",
+        ".yml",
+        # Config & Scripts
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".toml",
+        ".env",
+        ".editorconfig",
+        ".gitignore",
+        ".dockerfile",
+        ".sh",
+        ".bat",
+        ".ps1",
+        ".bash",
+        ".zsh",
+        # Markup & Docs
+        ".md",
+        ".mdx",
+        ".rst",
+        ".tex",
+        ".txt",
+        ".log",
+        ".csv",
+        ".tsv",
+        # .NET project files (CS/VB project, solution, XAML)
+        ".csproj",
+        ".fsproj",
+        ".vbproj",
+        ".sln",
+        ".xaml",
+        ".axaml",
+        # Training config
+        ".yaml",
+        ".yml",
+        # Data
+        ".sql",
+        ".sqlite",
+    }
+)
 
 # ── Known binary file extensions (hard binary, never text) ──
 # These extensions are used by dispatcher.py and scanner.py to skip files
 # that are guaranteed to be binary and should never be parsed as text.
-KNOWN_BINARY_EXTS = frozenset({
-    '.pt', '.pth', '.pkl', '.joblib', '.onnx', '.h5', '.hdf5', '.hdf',
-    '.pb', '.meta', '.index', '.data-00000-of-00001',
-    '.npy', '.npz', '.bin', '.dat', '.raw',
-    '.caffemodel', '.weights',
-    '.zip', '.gz', '.bz2', '.xz', '.tar', '.7z', '.rar',
-    '.so', '.dll', '.dylib', '.exe', '.msi', '.dmg',
-    '.o', '.obj', '.a', '.lib', '.pyc', '.pyo', '.class',
-    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp',
-    '.mp3', '.mp4', '.avi', '.mov', '.wav', '.flac',
-})
+KNOWN_BINARY_EXTS = frozenset(
+    {
+        ".pt",
+        ".pth",
+        ".pkl",
+        ".joblib",
+        ".onnx",
+        ".h5",
+        ".hdf5",
+        ".hdf",
+        ".pb",
+        ".meta",
+        ".index",
+        ".data-00000-of-00001",
+        ".npy",
+        ".npz",
+        ".bin",
+        ".dat",
+        ".raw",
+        ".caffemodel",
+        ".weights",
+        ".zip",
+        ".gz",
+        ".bz2",
+        ".xz",
+        ".tar",
+        ".7z",
+        ".rar",
+        ".so",
+        ".dll",
+        ".dylib",
+        ".exe",
+        ".msi",
+        ".dmg",
+        ".o",
+        ".obj",
+        ".a",
+        ".lib",
+        ".pyc",
+        ".pyo",
+        ".class",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".webp",
+        ".mp3",
+        ".mp4",
+        ".avi",
+        ".mov",
+        ".wav",
+        ".flac",
+    }
+)
 
 # ── Office MIME type mapping ──
 # Centralized mapping used by both dispatcher.py and scanner.py to avoid duplication.
 # Maps MIME type -> (filetype, display_name).
 OFFICE_MIME_MAP = {
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ('docx', 'DOCX'),
-    'application/msword': ('doc', 'DOC'),
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation': ('pptx', 'PPTX'),
-    'application/vnd.ms-powerpoint': ('ppt', 'PPT'),
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ('xlsx', 'XLSX'),
-    'application/vnd.ms-excel': ('xls', 'XLS'),
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ("docx", "DOCX"),
+    "application/msword": ("doc", "DOC"),
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ("pptx", "PPTX"),
+    "application/vnd.ms-powerpoint": ("ppt", "PPT"),
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ("xlsx", "XLSX"),
+    "application/vnd.ms-excel": ("xls", "XLS"),
 }
 
 # Set of MIME types that are recognized as Office formats (for fast lookup).
 OFFICE_MIME_SET = frozenset(OFFICE_MIME_MAP.keys())
 
 # Priority MIME prefixes for text detection.
-TEXT_MIME_PREFIXES = frozenset({'text/'})
+TEXT_MIME_PREFIXES = frozenset({"text/"})
 
 # MIME types for exact match (not prefix-based).
-EXACT_MIME_SET = frozenset({
-    'application/pdf',
-} | OFFICE_MIME_SET)
+EXACT_MIME_SET = frozenset(
+    {
+        "application/pdf",
+    }
+    | OFFICE_MIME_SET
+)
 
 # ── Extension to Office filetype mapping ──
 # Used for extension-based dispatch when MIME detection is unavailable.
 OFFICE_EXT_MAP = {
-    '.doc': 'doc', '.ppt': 'ppt', '.xls': 'xls',
-    '.wps': 'wps', '.et': 'et', '.dps': 'dps',
-    '.docx': 'docx', '.pptx': 'pptx', '.xlsx': 'xlsx',
+    ".doc": "doc",
+    ".ppt": "ppt",
+    ".xls": "xls",
+    ".wps": "wps",
+    ".et": "et",
+    ".dps": "dps",
+    ".docx": "docx",
+    ".pptx": "pptx",
+    ".xlsx": "xlsx",
 }
 
 # Set of Office-related extensions for quick lookup.
@@ -168,14 +340,14 @@ OFFICE_EXT_SET = frozenset(OFFICE_EXT_MAP.keys())
 
 # ── Legacy format conversion mappings ──
 LEGACY_MAP = {
-    'doc': ('docx', 'MS Word 97-2003'),
-    'ppt': ('pptx', 'MS PowerPoint 97-2003'),
-    'xls': ('xlsx', 'MS Excel 97-2003'),
+    "doc": ("docx", "MS Word 97-2003"),
+    "ppt": ("pptx", "MS PowerPoint 97-2003"),
+    "xls": ("xlsx", "MS Excel 97-2003"),
 }
 WPS_MAP = {
-    'wps': ('docx', 'WPS Writer'),
-    'et': ('xlsx', 'WPS Spreadsheet'),
-    'dps': ('pptx', 'WPS Presentation'),
+    "wps": ("docx", "WPS Writer"),
+    "et": ("xlsx", "WPS Spreadsheet"),
+    "dps": ("pptx", "WPS Presentation"),
 }
 
 # ── 输出格式 / Output formatting ──
@@ -250,19 +422,50 @@ DEFAULT_LANG = "zh"
 
 # ── File type to display name mapping ──
 FILE_TYPE_MAP = {
-    '.txt': 'TXT', '.md': 'Markdown', '.py': 'Python', '.js': 'JavaScript',
-    '.ts': 'TypeScript', '.html': 'HTML', '.css': 'CSS', '.json': 'JSON',
-    '.xml': 'XML', '.yaml': 'YAML', '.yml': 'YAML', '.csv': 'CSV',
-    '.ini': 'Config', '.cfg': 'Config', '.conf': 'Config',
-    '.cs': 'C#', '.java': 'Java', '.cpp': 'C++', '.h': 'C Header',
-    '.go': 'Go', '.rs': 'Rust', '.swift': 'Swift', '.kt': 'Kotlin',
-    '.rb': 'Ruby', '.php': 'PHP', '.sh': 'Shell Script', '.bat': 'Batch',
-    '.ps1': 'PowerShell', '.sql': 'SQL', '.r': 'R',
+    ".txt": "TXT",
+    ".md": "Markdown",
+    ".py": "Python",
+    ".js": "JavaScript",
+    ".ts": "TypeScript",
+    ".html": "HTML",
+    ".css": "CSS",
+    ".json": "JSON",
+    ".xml": "XML",
+    ".yaml": "YAML",
+    ".yml": "YAML",
+    ".csv": "CSV",
+    ".ini": "Config",
+    ".cfg": "Config",
+    ".conf": "Config",
+    ".cs": "C#",
+    ".java": "Java",
+    ".cpp": "C++",
+    ".h": "C Header",
+    ".go": "Go",
+    ".rs": "Rust",
+    ".swift": "Swift",
+    ".kt": "Kotlin",
+    ".rb": "Ruby",
+    ".php": "PHP",
+    ".sh": "Shell Script",
+    ".bat": "Batch",
+    ".ps1": "PowerShell",
+    ".sql": "SQL",
+    ".r": "R",
 }
 
 FILE_TYPE_ICONS = {
-    'Python': '🐍', 'JavaScript': '🟨', 'TypeScript': '🔵',
-    'HTML': '🌐', 'CSS': '🎨', 'Markdown': '📝', 'TXT': '📄',
-    'C#': '🔷', 'Java': '☕', 'Go': '🔷', 'Rust': '🦀',
-    'Swift': '🍎', 'Kotlin': '🅺',
+    "Python": "🐍",
+    "JavaScript": "🟨",
+    "TypeScript": "🔵",
+    "HTML": "🌐",
+    "CSS": "🎨",
+    "Markdown": "📝",
+    "TXT": "📄",
+    "C#": "🔷",
+    "Java": "☕",
+    "Go": "🔷",
+    "Rust": "🦀",
+    "Swift": "🍎",
+    "Kotlin": "🅺",
 }

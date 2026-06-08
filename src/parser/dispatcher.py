@@ -29,27 +29,24 @@ logger = logging.getLogger(__name__)
 #   - OSError/FileNotFoundError: shared library (libmagic) not found on system
 #   - Various low-level errors: ctypes.CDLL error on Windows (bundled magic1.dll missing/corrupt)
 # Use string annotation to defer evaluation — Magic is only available under TYPE_CHECKING.
-_magic: Optional['Magic'] = None
+_magic: Optional["Magic"] = None
 _magic_available = False
 
 try:
     import magic
+
     _magic = magic.Magic(mime=True)
     _magic_available = True
 except (ImportError, AttributeError, OSError):
     _magic = None
     _magic_available = False
-    logger.debug(
-        "python-magic not available (or failed to load). "
-        "Falling back to extension-based dispatch."
-    )
+    logger.debug("python-magic not available (or failed to load). Falling back to extension-based dispatch.")
 except Exception:
     # Truly unexpected errors (e.g., ctypes corruption)
     _magic = None
     _magic_available = False
     logger.debug(
-        "python-magic unavailable due to unexpected error. "
-        "Falling back to extension-based dispatch.",
+        "python-magic unavailable due to unexpected error. Falling back to extension-based dispatch.",
         exc_info=True,
     )
 
@@ -65,6 +62,7 @@ try:
         TEXT_DETECTION_PRINTABLE_RATIO,
         TEXT_DETECTION_SAMPLE_BYTES,
     )
+
     _FALLBACK_TEXT_EXTS: frozenset = SUPPORTED_TEXT_EXTS
     _KNOWN_BINARY_EXTS: frozenset = KNOWN_BINARY_EXTS
     _OFFICE_MIME_SET: frozenset = OFFICE_MIME_SET
@@ -75,37 +73,108 @@ try:
     _SAMPLE_BYTES: int = TEXT_DETECTION_SAMPLE_BYTES
 except ImportError:
     # Standalone fallback
-    _FALLBACK_TEXT_EXTS = frozenset({
-        '.txt', '.md', '.py', '.js', '.ts', '.html', '.css', '.json',
-        '.xml', '.csv', '.yaml', '.yml', '.log', '.ini', '.cfg', '.conf',
-        '.cs', '.java', '.cpp', '.h',
-    })
-    _KNOWN_BINARY_EXTS = frozenset({
-        '.pt', '.pth', '.pkl', '.joblib', '.onnx', '.h5', '.hdf5', '.hdf',
-        '.pb', '.meta', '.index', '.data-00000-of-00001',
-        '.npy', '.npz', '.bin', '.dat', '.raw',
-        '.caffemodel', '.weights',
-        '.zip', '.gz', '.bz2', '.xz', '.tar', '.7z', '.rar',
-        '.so', '.dll', '.dylib', '.exe', '.msi', '.dmg',
-        '.o', '.obj', '.a', '.lib', '.pyc', '.pyo', '.class',
-        '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp',
-        '.mp3', '.mp4', '.avi', '.mov', '.wav', '.flac',
-    })
-    _OFFICE_MIME_SET = frozenset({
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'application/vnd.ms-powerpoint',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-excel',
-    })
+    _FALLBACK_TEXT_EXTS = frozenset(
+        {
+            ".txt",
+            ".md",
+            ".py",
+            ".js",
+            ".ts",
+            ".html",
+            ".css",
+            ".json",
+            ".xml",
+            ".csv",
+            ".yaml",
+            ".yml",
+            ".log",
+            ".ini",
+            ".cfg",
+            ".conf",
+            ".cs",
+            ".java",
+            ".cpp",
+            ".h",
+        }
+    )
+    _KNOWN_BINARY_EXTS = frozenset(
+        {
+            ".pt",
+            ".pth",
+            ".pkl",
+            ".joblib",
+            ".onnx",
+            ".h5",
+            ".hdf5",
+            ".hdf",
+            ".pb",
+            ".meta",
+            ".index",
+            ".data-00000-of-00001",
+            ".npy",
+            ".npz",
+            ".bin",
+            ".dat",
+            ".raw",
+            ".caffemodel",
+            ".weights",
+            ".zip",
+            ".gz",
+            ".bz2",
+            ".xz",
+            ".tar",
+            ".7z",
+            ".rar",
+            ".so",
+            ".dll",
+            ".dylib",
+            ".exe",
+            ".msi",
+            ".dmg",
+            ".o",
+            ".obj",
+            ".a",
+            ".lib",
+            ".pyc",
+            ".pyo",
+            ".class",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".bmp",
+            ".webp",
+            ".mp3",
+            ".mp4",
+            ".avi",
+            ".mov",
+            ".wav",
+            ".flac",
+        }
+    )
+    _OFFICE_MIME_SET = frozenset(
+        {
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel",
+        }
+    )
     _OFFICE_EXT_MAP = {
-        '.doc': 'doc', '.ppt': 'ppt', '.xls': 'xls',
-        '.wps': 'wps', '.et': 'et', '.dps': 'dps',
-        '.docx': 'docx', '.pptx': 'pptx', '.xlsx': 'xlsx',
+        ".doc": "doc",
+        ".ppt": "ppt",
+        ".xls": "xls",
+        ".wps": "wps",
+        ".et": "et",
+        ".dps": "dps",
+        ".docx": "docx",
+        ".pptx": "pptx",
+        ".xlsx": "xlsx",
     }
     _OFFICE_EXT_SET = frozenset(_OFFICE_EXT_MAP.keys())
-    _TEXT_MIME_PREFIXES = frozenset({'text/'})
+    _TEXT_MIME_PREFIXES = frozenset({"text/"})
     _PRINTABLE_RATIO_THRESHOLD = 0.9
     _SAMPLE_BYTES = 8192
 
@@ -113,22 +182,22 @@ except ImportError:
 # ── MIME to filetype mapping ──
 # Maps Office MIME types to their corresponding filetype strings for parse_office().
 _MIME_TO_FILETYPE: Dict[str, str] = {
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-    'application/msword': 'doc',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
-    'application/vnd.ms-powerpoint': 'ppt',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-    'application/vnd.ms-excel': 'xls',
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "application/vnd.ms-powerpoint": "ppt",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.ms-excel": "xls",
 }
 
 # Configuration for Office parser behavior
 # These defaults can be overridden via environment variables or direct import.
-OFFICE_INCLUDE_TABLES = os.environ.get('OFFICE_INCLUDE_TABLES', '0') == '1'
-OFFICE_INCLUDE_HEADERS_FOOTERS = os.environ.get('OFFICE_INCLUDE_HEADERS_FOOTERS', '0') == '1'
-OFFICE_INCLUDE_FOOTNOTES = os.environ.get('OFFICE_INCLUDE_FOOTNOTES', '0') == '1'
-OFFICE_ANNOTATE_STYLES = os.environ.get('OFFICE_ANNOTATE_STYLES', '1') == '1'
-OFFICE_EXTRACT_PPT_NOTES = os.environ.get('OFFICE_EXTRACT_PPT_NOTES', '0') == '1'
-OFFICE_MAX_ROWS_XLSX = int(os.environ.get('OFFICE_MAX_ROWS_XLSX', '10000'))
+OFFICE_INCLUDE_TABLES = os.environ.get("OFFICE_INCLUDE_TABLES", "0") == "1"
+OFFICE_INCLUDE_HEADERS_FOOTERS = os.environ.get("OFFICE_INCLUDE_HEADERS_FOOTERS", "0") == "1"
+OFFICE_INCLUDE_FOOTNOTES = os.environ.get("OFFICE_INCLUDE_FOOTNOTES", "0") == "1"
+OFFICE_ANNOTATE_STYLES = os.environ.get("OFFICE_ANNOTATE_STYLES", "1") == "1"
+OFFICE_EXTRACT_PPT_NOTES = os.environ.get("OFFICE_EXTRACT_PPT_NOTES", "0") == "1"
+OFFICE_MAX_ROWS_XLSX = int(os.environ.get("OFFICE_MAX_ROWS_XLSX", "10000"))
 
 
 def _should_try_text_fallback(filepath: str) -> bool:
@@ -164,19 +233,19 @@ def _should_try_text_fallback(filepath: str) -> bool:
         return True
     # For unknown extensions, read a small sample to determine if it's text.
     try:
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             sample = f.read(_SAMPLE_BYTES)
         # First try UTF-8 — most modern text files will succeed here.
         try:
-            sample.decode('utf-8')
+            sample.decode("utf-8")
             return True
         except UnicodeDecodeError:
             # UTF-8 failed. Try Latin-1 which decodes any byte sequence.
             # Then count printable characters to distinguish text from binary.
-            decoded = sample.decode('latin-1')
+            decoded = sample.decode("latin-1")
             # Count characters that are printable (letters, digits, punctuation)
             # plus common whitespace controls (newline, carriage return, tab).
-            printable = sum(1 for c in decoded if c.isprintable() or c in '\n\r\t')
+            printable = sum(1 for c in decoded if c.isprintable() or c in "\n\r\t")
             if len(sample) > 0 and printable / len(sample) > _PRINTABLE_RATIO_THRESHOLD:
                 return True
     except (OSError, IOError) as e:
@@ -251,12 +320,12 @@ def parse_file(filepath: str, **kwargs: Any) -> Optional[Dict[str, Any]]:
 
     # Collect office parser arguments from kwargs + env defaults
     office_kwargs: Dict[str, Any] = {
-        'include_tables': kwargs.get('include_tables', OFFICE_INCLUDE_TABLES),
-        'include_headers_footers': kwargs.get('include_headers_footers', OFFICE_INCLUDE_HEADERS_FOOTERS),
-        'include_footnotes': kwargs.get('include_footnotes', OFFICE_INCLUDE_FOOTNOTES),
-        'annotate_styles': kwargs.get('annotate_styles', OFFICE_ANNOTATE_STYLES),
-        'extract_ppt_notes': kwargs.get('extract_ppt_notes', OFFICE_EXTRACT_PPT_NOTES),
-        'max_rows_xlsx': kwargs.get('max_rows_xlsx', OFFICE_MAX_ROWS_XLSX),
+        "include_tables": kwargs.get("include_tables", OFFICE_INCLUDE_TABLES),
+        "include_headers_footers": kwargs.get("include_headers_footers", OFFICE_INCLUDE_HEADERS_FOOTERS),
+        "include_footnotes": kwargs.get("include_footnotes", OFFICE_INCLUDE_FOOTNOTES),
+        "annotate_styles": kwargs.get("annotate_styles", OFFICE_ANNOTATE_STYLES),
+        "extract_ppt_notes": kwargs.get("extract_ppt_notes", OFFICE_EXTRACT_PPT_NOTES),
+        "max_rows_xlsx": kwargs.get("max_rows_xlsx", OFFICE_MAX_ROWS_XLSX),
     }
 
     # MIME-based dispatch
@@ -276,7 +345,7 @@ def parse_file(filepath: str, **kwargs: Any) -> Optional[Dict[str, Any]]:
     # and modern Office formats (.docx, .pptx, .xlsx) as a fallback
     # when python-magic is not available or returns non-standard MIME types.
     if ext in _OFFICE_EXT_SET:
-        ft = _OFFICE_EXT_MAP.get(ext, ext.lstrip('.'))
+        ft = _OFFICE_EXT_MAP.get(ext, ext.lstrip("."))
         logger.debug("Extension-based Office/WPS dispatch for %s (type=%s)", filepath, ft)
         return parse_office(filepath, ft, **office_kwargs)
 

@@ -17,7 +17,7 @@
 # FolderKnowledgeSiteGeneratorForAI 📁 → 🌐
 
 [![PyPI Version](https://img.shields.io/badge/pypi-v2.2.0-blue)](https://pypi.org/project/FolderKnowledgeSiteGeneratorForAI/)
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **一键将文件夹转为 AI 可读的知识门户或分片文本，无需服务器与 API。**  
@@ -46,7 +46,7 @@
 
 | 依赖 | 版本 | 说明 |
 |------|------|------|
-| Python | **3.8+** | 推荐 3.10+ |
+| Python | **3.10+** | `pyproject.toml` 声明 `>=3.10` |
 | tkinter | 系统自带（大多） | Linux 需单独安装 `python3-tk` |
 | pip 包 | `python-magic`, `pdfminer.six`, `python-docx`, `python-pptx`, `openpyxl`, `chardet` | `pip install -r requirements.txt` 一键安装 |
 | tkinterdnd2 | **可选** | 拖拽文件夹到 GUI。不安装也可通过 Browse / Paste 使用 |
@@ -84,7 +84,7 @@
 
 ```
 首次运行（自动配置环境）
-├── 1. 检测 Python 3.8+ 是否已安装
+├── 1. 检测 Python 3.10+ 是否已安装
 │     ├── Windows: 缺失时自动调用 winget 安装
 │     └── Linux/macOS: 显示包管理器安装命令
 ├── 2. 检测/创建 Python 虚拟环境（.venv）
@@ -199,13 +199,13 @@ output_dir/
 
 | 功能 | 说明 |
 |------|------|
-| 📂 **文件夹选择** | 浏览、粘贴或拖拽，快捷键 `Ctrl+O` |
-| 🔄 **模式切换** | Single TXT / Split TXT / Portal，自动调整 UI |
-| 🚀 **一键生成** | 进度条实时反馈，快捷键 `Ctrl+G` |
-| 🌐 **中英双语** | 即时切换，偏好自动保存（`~/.folderknowledge_settings.json`） |
-| 📋 **实时文件列表** | 显示文件、大小、状态，支持名称/内容搜索 |
-| ▶️ **HTTP 服务器** | Portal 生成后一键启动本地服务器供 AI 读取 |
-| 📂 **拖拽支持** | 支持文件夹拖入 GUI（需 `tkinterdnd2`） |
+| 📂 **文件夹选择** | Browse / Paste / 拖拽，`Ctrl+O` |
+| 🔄 **模式切换** | TXT / Split TXT / Portal |
+| 🚀 **一键生成** | 进度条实时，`Ctrl+G` |
+| 🌐 **中英双语** | 即时切换，偏好保存至 `~/.folderknowledge_settings.json` |
+| 📋 **文件列表** | 文件名 / 大小 / 状态，可搜索 |
+| ▶️ **HTTP 服务器** | Portal 生成后一键启动，供浏览器 AI 读取 |
+| 📂 **拖拽支持** | 需 `tkinterdnd2`（可选） |
 
 > ⚠️ **拖拽说明**：若 `tkinterdnd2` 未安装，启动时会显示提示。可使用 **Browse** 按钮或 **Paste**（Ctrl+V 粘贴文件夹路径）代替，功能完全相同。
 
@@ -386,25 +386,27 @@ pip install --only-binary :all: tkinterdnd2
 
 ## 🤝 贡献 / Contributing
 
-- **代码风格**：`ruff check src/ tests/`
-- **类型检查**：`mypy src/ --install-types --non-interactive --config-file mypy.ini`
-- **运行测试**：`pytest tests/ -v`
+> **⚠️ 每次修改代码后务必运行：`make check`**（一键执行 lint → 格式检查 → 类型检查 → 测试全流程）
+> 本地通过后再推送，避免 CI 红线。
+
+- **lint**：`ruff check src/ tests/`
+- **格式检查**：`ruff format --check src/ tests/`
+- **类型检查**：`mypy src/ --config-file mypy.ini`
+- **测试**：`pytest tests/ -v`
 - **提交规范**：feature branch → PR → main
 
-### ⚠️ 常见 CI 类型检查错误 / Common mypy Type Errors
+### ⚠️ 常见 mypy 类型检查错误
 
-CI 中 mypy 检查失败通常由以下 3 类问题引起，请务必遵守规范以避免重复提交失败：
+务必遵守以下 3 条规范（CI 会拦截）：
 
-**1. Optional 注解缺失（PEP 484 违规）**
+**1. Optional 注解缺失**
 
-变量允许为 `None` 时必须显式标注 `Optional[X]`，禁止隐式 Optional（mypy 默认 `no_implicit_optional=True`）：
+变量允许为 `None` 时显式标注 `Optional[X]`：
 
 ```python
-# ❌ 错误：变量类型为 set，但默认值为 None
-def build_tree(parsed_files: set = None):
-    ...
-
-# ✅ 正确：显式使用 Optional
+# ❌ 错
+def build_tree(parsed_files: set = None): ...
+# ✅ 对
 from typing import Optional
 def build_tree(parsed_files: Optional[set] = None):
     if parsed_files is None:
@@ -413,47 +415,30 @@ def build_tree(parsed_files: Optional[set] = None):
 
 **2. 变量缺少类型注解**
 
-mypy 无法推断或推断出错误类型时，需要显式注解：
-
 ```python
-# ❌ 错误：mypy 无法推断 Counter 类型
+# ❌ 错
 counter = Counter()
-
-# ✅ 正确
-counter: Counter = Counter()
-
-# ❌ 错误：mypy 无法推断空列表元素类型
 lines = []
-
-# ✅ 正确
+# ✅ 对
+counter: Counter = Counter()
 lines: list[str] = []
 ```
 
-**3. 类型注解时机问题（导入前使用）**
+**3. 条件导入的类型注解（`TYPE_CHECKING`）**
 
-类型注解在定义时求值，必须确保被引用的类型已定义。对于条件导入的模块（如可选依赖），使用 `TYPE_CHECKING` 条件导入：
+可选依赖用 `TYPE_CHECKING` + 字符串避免 `NameError`：
 
 ```python
-# ❌ 错误：magic 在类型注解时尚未导入
-_magic: Optional[magic.Magic] = None
-try:
-    import magic
-
-# ✅ 正确：使用 TYPE_CHECKING + 字符串注解
 from typing import TYPE_CHECKING, Optional
-
 if TYPE_CHECKING:
     from magic import Magic
-
 _magic: Optional['Magic'] = None  # 字符串形式，延迟求值
 try:
     import magic
     _magic = magic.Magic(mime=True)
 ```
 
-**为什么需要字符串形式**：`TYPE_CHECKING` 在运行时为 `False`，运行时 `Magic` 未导入，字符串形式避免了 `NameError`。
-
-> 💡 **提示**：项目根目录的 `mypy.ini` 已配置 `ignore_missing_imports = true` 和模块级忽略规则，可处理 `tkinterdnd2` 等可选依赖的导入问题。
+> `pyproject.toml` 的 `[tool.mypy.overrides]` 已配置可选依赖（`tkinterdnd2`、`magic` 等）的忽略规则，一般情况无需手动添加 ignore。
 
 ---
 

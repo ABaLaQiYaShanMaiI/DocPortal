@@ -3,6 +3,7 @@ FolderKnowledgeSiteGeneratorForAI — HTML Templates
 Loads and renders HTML templates from the templates/ directory.
 Generates single-page knowledge portal with collapsible file contents.
 """
+
 from __future__ import annotations
 
 import os
@@ -31,32 +32,63 @@ try:
 except ImportError:
     # Fallback mappings if constants module unavailable
     FILE_TYPE_MAP = {
-        '.txt': 'TXT', '.md': 'Markdown', '.py': 'Python', '.js': 'JavaScript',
-        '.ts': 'TypeScript', '.html': 'HTML', '.css': 'CSS', '.json': 'JSON',
-        '.xml': 'XML', '.yaml': 'YAML', '.yml': 'YAML', '.csv': 'CSV',
-        '.ini': 'Config', '.cfg': 'Config', '.conf': 'Config',
-        '.cs': 'C#', '.java': 'Java', '.cpp': 'C++', '.h': 'C Header',
-        '.go': 'Go', '.rs': 'Rust', '.swift': 'Swift', '.kt': 'Kotlin',
-        '.rb': 'Ruby', '.php': 'PHP', '.sh': 'Shell Script', '.bat': 'Batch',
-        '.ps1': 'PowerShell', '.sql': 'SQL', '.r': 'R',
+        ".txt": "TXT",
+        ".md": "Markdown",
+        ".py": "Python",
+        ".js": "JavaScript",
+        ".ts": "TypeScript",
+        ".html": "HTML",
+        ".css": "CSS",
+        ".json": "JSON",
+        ".xml": "XML",
+        ".yaml": "YAML",
+        ".yml": "YAML",
+        ".csv": "CSV",
+        ".ini": "Config",
+        ".cfg": "Config",
+        ".conf": "Config",
+        ".cs": "C#",
+        ".java": "Java",
+        ".cpp": "C++",
+        ".h": "C Header",
+        ".go": "Go",
+        ".rs": "Rust",
+        ".swift": "Swift",
+        ".kt": "Kotlin",
+        ".rb": "Ruby",
+        ".php": "PHP",
+        ".sh": "Shell Script",
+        ".bat": "Batch",
+        ".ps1": "PowerShell",
+        ".sql": "SQL",
+        ".r": "R",
     }
     FILE_TYPE_ICONS = {
-        'Python': '🐍', 'JavaScript': '🟨', 'TypeScript': '🔵',
-        'HTML': '🌐', 'CSS': '🎨', 'Markdown': '📝', 'TXT': '📄',
-        'C#': '🔷', 'Java': '☕', 'Go': '🔷', 'Rust': '🦀',
-        'Swift': '🍎', 'Kotlin': '🅺',
+        "Python": "🐍",
+        "JavaScript": "🟨",
+        "TypeScript": "🔵",
+        "HTML": "🌐",
+        "CSS": "🎨",
+        "Markdown": "📝",
+        "TXT": "📄",
+        "C#": "🔷",
+        "Java": "☕",
+        "Go": "🔷",
+        "Rust": "🦀",
+        "Swift": "🍎",
+        "Kotlin": "🅺",
     }
 
 
 def _get_file_type(filename: str) -> str:
     """Determine file type from extension using shared constants."""
     ext = os.path.splitext(filename)[1].lower()
-    return FILE_TYPE_MAP.get(ext, ext.upper().lstrip('.').replace('.', '') if ext else 'Unknown')
+    return FILE_TYPE_MAP.get(ext, ext.upper().lstrip(".").replace(".", "") if ext else "Unknown")
 
 
 def _get_file_type_icon(file_type: str) -> str:
     """Return an emoji icon for the given file type using shared constants."""
-    return FILE_TYPE_ICONS.get(file_type, '📄')
+    return FILE_TYPE_ICONS.get(file_type, "📄")
 
 
 def build_file_content_blocks(docs_texts: list) -> str:
@@ -94,10 +126,10 @@ def build_file_content_blocks(docs_texts: list) -> str:
         size_hr_escaped = escape(size_hr)
         # Base64 encode the filename to avoid CSS selector escaping issues
         # with special characters like &, ", ', etc.
-        safe_filename_b64 = base64.b64encode(title.replace('\\', '/').encode('utf-8')).decode('ascii')
+        safe_filename_b64 = base64.b64encode(title.replace("\\", "/").encode("utf-8")).decode("ascii")
 
         # Build pre-computed search index (lowercase title + tags for fast JS filtering)
-        search_index = (title.lower() + ' ' + ' '.join(t.lower() for t in tags)).strip()
+        search_index = (title.lower() + " " + " ".join(t.lower() for t in tags)).strip()
         safe_search_index = escape(search_index)
 
         # Build tags string
@@ -119,12 +151,12 @@ def build_file_content_blocks(docs_texts: list) -> str:
             f'    <span class="file-size">{size_hr_escaped}</span>\n'
             f'    <span class="file-chars">{size_str} chars</span>\n'
             f'    <span class="file-tags">{tags_html}</span>\n'
-    f'    <button class="copy-file-btn" data-file-index="{i}" onclick="copyFileContent(this)" title="Copy this file">📋 Copy</button>\n'
-            f'  </div>\n'
+            f'    <button class="copy-file-btn" data-file-index="{i}" onclick="copyFileContent(this)" title="Copy this file">📋 Copy</button>\n'
+            f"  </div>\n"
             f'  <div class="doc-content">\n'
             f'    <pre id="file-content-{i}"><code>{escaped_text}</code></pre>\n'
-            f'  </div>\n'
-            f'</div>'
+            f"  </div>\n"
+            f"</div>"
         )
         parts.append(block)
 
@@ -210,7 +242,7 @@ def build_ai_raw_text_block(
 
 def _format_total_size(docs_meta: list) -> str:
     total = sum(d.get("size", 0) for d in docs_meta)
-    for unit in ['B', 'KB', 'MB', 'GB']:
+    for unit in ["B", "KB", "MB", "GB"]:
         if total < 1024:
             return f"{total:.1f} {unit}"
         total /= 1024
@@ -224,11 +256,11 @@ def _path_to_subpage_filename(rel_path: str) -> str:
         src/parser/text_parser.py → src_parser_text_parser.html
         README.md → README.html
     """
-    safe = rel_path.replace('\\', '/').replace('/', '_')
+    safe = rel_path.replace("\\", "/").replace("/", "_")
     # Replace other potentially problematic characters
-    safe = safe.replace(' ', '_').replace('#', '_').replace('?', '_')
-    safe = safe.replace('%', '_').replace('&', '_').replace('=', '_')
-    return safe + '.html'
+    safe = safe.replace(" ", "_").replace("#", "_").replace("?", "_")
+    safe = safe.replace("%", "_").replace("&", "_").replace("=", "_")
+    return safe + ".html"
 
 
 def build_subpage_html(
@@ -280,23 +312,25 @@ def build_subpage_html(
         safe_tag = escape(tag)
         meta_tags_html += f'<span class="file-tag" style="background:#e8f0fe;color:#1a73e8;border-radius:6px;padding:1px 6px;font-size:0.85em;">{safe_tag}</span>'
     if meta_tags_html:
-        meta_tags_html = f'<span>🏷️ {meta_tags_html}</span>'
+        meta_tags_html = f"<span>🏷️ {meta_tags_html}</span>"
 
     tpl = string.Template(template)
-    result = tpl.safe_substitute({
-        "escaped_title": escaped_title,
-        "escaped_folder": escaped_folder,
-        "escaped_text": escaped_text,
-        "file_size_hr": escape(size_hr),
-        "char_count": f"{size:,}",
-        "meta_tags_html": meta_tags_html,
-        "back_text": back_text,
-        "copy_text": copy_text,
-        "copied_text": copied_text,
-        "size_text": size_text,
-        "chars_text": chars_text,
-        "generated_by_text": generated_by_text,
-    })
+    result = tpl.safe_substitute(
+        {
+            "escaped_title": escaped_title,
+            "escaped_folder": escaped_folder,
+            "escaped_text": escaped_text,
+            "file_size_hr": escape(size_hr),
+            "char_count": f"{size:,}",
+            "meta_tags_html": meta_tags_html,
+            "back_text": back_text,
+            "copy_text": copy_text,
+            "copied_text": copied_text,
+            "size_text": size_text,
+            "chars_text": chars_text,
+            "generated_by_text": generated_by_text,
+        }
+    )
     # Guard against accidental bare $$ in output (from user content that contained $)
     # string.Template uses $$ for literal $, so if user content had $ it's already escaped.
     return result
@@ -338,42 +372,38 @@ def build_file_tree_split_html(folder_path: str, parsed_docs: list, include_skip
             rel_path = os.path.relpath(full_path, root_for_rel)
 
             if os.path.isdir(full_path):
-                if name in _FILTER_DIRS or name.startswith('.'):
+                if name in _FILTER_DIRS or name.startswith("."):
                     continue
-                items.append(('dir', name, full_path, rel_path))
+                items.append(("dir", name, full_path, rel_path))
             else:
                 if _should_filter_file(rel_path):
                     if not include_skipped:
                         continue
                     # include_skipped=True: show filtered files as non-parsed
-                items.append(('file', name, full_path, rel_path))
+                items.append(("file", name, full_path, rel_path))
 
-        dirs = [(n, f, r) for t, n, f, r in items if t == 'dir']
-        files = [(n, f, r) for t, n, f, r in items if t == 'file']
+        dirs = [(n, f, r) for t, n, f, r in items if t == "dir"]
+        files = [(n, f, r) for t, n, f, r in items if t == "file"]
         all_items = dirs + files
 
         result = []
         for idx, (name, full_path, rel_path) in enumerate(all_items):
-            is_last = (idx == len(all_items) - 1)
-            connector = '└──' if is_last else '├──'
-            child_prefix = prefix + ('    ' if is_last else '│   ')
+            is_last = idx == len(all_items) - 1
+            connector = "└──" if is_last else "├──"
+            child_prefix = prefix + ("    " if is_last else "│   ")
 
             if os.path.isdir(full_path):
                 # Build children recursively
                 children = walk(full_path, child_prefix)
-                children_html = (
-                    f'<ul class="folder-children">\n'
-                    f'  {chr(10).join(children)}'
-                    f'</ul>'
-                ) if children else ''
+                children_html = (f'<ul class="folder-children">\n  {chr(10).join(children)}</ul>') if children else ""
 
                 result.append(
                     f'<li class="tree-folder" onclick="toggleFolder(this)">'
                     f'<span class="tree-prefix">{prefix}{connector}</span>'
                     f'<span class="folder-toggle-icon">▼</span>'
                     f'<span class="tree-folder-name">📁 {name}</span>'
-                    f'{children_html}'
-                    f'</li>'
+                    f"{children_html}"
+                    f"</li>"
                 )
             else:
                 size = os.path.getsize(full_path)
@@ -383,26 +413,28 @@ def build_file_tree_split_html(folder_path: str, parsed_docs: list, include_skip
                 subpage_name = _path_to_subpage_filename(rel_path)
 
                 if is_parsed:
-                    link_html = f'<a href="docs/{subpage_name}" target="_blank" onclick="event.stopPropagation()">📄 {name}</a>'
+                    link_html = (
+                        f'<a href="docs/{subpage_name}" target="_blank" onclick="event.stopPropagation()">📄 {name}</a>'
+                    )
                 else:
                     link_html = f'<span class="unparsed">⏭️ {name}</span>'
 
-                css_class = 'tree-file'
+                css_class = "tree-file"
                 if not is_parsed:
-                    css_class += ' skipped'
+                    css_class += " skipped"
 
                 result.append(
                     f'<li class="{css_class}">'
                     f'<span class="tree-prefix">{prefix}{connector}</span>'
-                    f'{link_html}'
+                    f"{link_html}"
                     f'<span class="tree-size"> {size_hr}</span>'
-                    f'</li>'
+                    f"</li>"
                 )
 
         return result
 
     lines = walk(folder_path)
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 def build_search_index_json(docs_texts: list) -> str:
@@ -429,20 +461,22 @@ def build_search_index_json(docs_texts: list) -> str:
         tags = doc.get("tags", []) or []
 
         # Get just the filename from the path
-        name = os.path.basename(title.replace('\\', '/'))
+        name = os.path.basename(title.replace("\\", "/"))
 
         # Preview: first 2000 chars for better search context and content matching.
         # Also include first 200 chars of raw text as hidden searchable text.
-        preview = text[:2000].replace('\n', ' ').strip()
+        preview = text[:2000].replace("\n", " ").strip()
 
-        index_data.append({
-            "path": title,
-            "name": name,
-            "tags": tags[:8],
-            "preview": preview,
-            # Note: full 'text' field omitted to keep index lightweight,
-            # but increased preview provides significantly better search quality.
-        })
+        index_data.append(
+            {
+                "path": title,
+                "name": name,
+                "tags": tags[:8],
+                "preview": preview,
+                # Note: full 'text' field omitted to keep index lightweight,
+                # but increased preview provides significantly better search quality.
+            }
+        )
     return json.dumps(index_data, ensure_ascii=False)
 
 
@@ -574,7 +608,7 @@ def wrap_index_html(
     # --- Build AI-friendly meta description for index page ---
     index_meta_desc = (
         f'Knowledge portal for folder "{folder_name}" with {doc_count} documents, '
-        f'{total_chars:,} total characters, generated at {generated_at}'
+        f"{total_chars:,} total characters, generated at {generated_at}"
     )
     escaped_index_meta_desc = escape(index_meta_desc)
 
@@ -589,21 +623,23 @@ def wrap_index_html(
 
     template = _load_template("index_page.html")
     tpl = string.Template(template)
-    result = tpl.safe_substitute({
-        "escaped_folder": escaped_folder,
-        "language": language,
-        "escaped_subtitle": "Knowledge Portal",
-        "escaped_path": escaped_path,
-        "doc_count": str(doc_count),
-        "skipped_count": str(skipped_count),
-        "total_chars": f"{total_chars:,}",
-        "total_size_hr": total_size_hr,
-        "generated_at_escaped": escape(generated_at),
-        "tags_cloud_html": tags_cloud_html,
-        "cards_html": "",
-        "file_tree_html": file_tree_html,
-        "file_contents_html": file_contents_html,
-        "meta_description_escaped": escaped_index_meta_desc,
-        "meta_keywords_escaped": escaped_index_keywords,
-    })
+    result = tpl.safe_substitute(
+        {
+            "escaped_folder": escaped_folder,
+            "language": language,
+            "escaped_subtitle": "Knowledge Portal",
+            "escaped_path": escaped_path,
+            "doc_count": str(doc_count),
+            "skipped_count": str(skipped_count),
+            "total_chars": f"{total_chars:,}",
+            "total_size_hr": total_size_hr,
+            "generated_at_escaped": escape(generated_at),
+            "tags_cloud_html": tags_cloud_html,
+            "cards_html": "",
+            "file_tree_html": file_tree_html,
+            "file_contents_html": file_contents_html,
+            "meta_description_escaped": escaped_index_meta_desc,
+            "meta_keywords_escaped": escaped_index_keywords,
+        }
+    )
     return result

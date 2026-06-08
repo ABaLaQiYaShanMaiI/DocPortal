@@ -61,9 +61,7 @@ class ServerManager:
 
         self._port = actual_port
         self._root = directory
-        self._thread = threading.Thread(
-            target=self._httpd.serve_forever, daemon=True, name="HTTPServer"
-        )
+        self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True, name="HTTPServer")
         self._thread.start()
 
         if self._on_status_change:

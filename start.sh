@@ -11,12 +11,12 @@ echo ""
 
 # -- Step 1: Quick Python check --
 PYTHON_CMD=()
-if command -v python3 &>/dev/null && python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)" 2>/dev/null; then
+if command -v python3 &>/dev/null && python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" 2>/dev/null; then
     PYTHON_CMD=(python3)
-elif command -v python &>/dev/null && python -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)" 2>/dev/null; then
+elif command -v python &>/dev/null && python -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" 2>/dev/null; then
     PYTHON_CMD=(python)
 else
-    echo "[ERROR] Python 3.8+ not found."
+    echo "[ERROR] Python 3.10+ not found."
     echo "Install: https://www.python.org/downloads/"
     exit 1
 fi

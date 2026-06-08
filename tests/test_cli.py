@@ -17,6 +17,7 @@ GENERATE_SCRIPT = os.path.join(PROJECT_ROOT, "generate.py")
 #  Fixtures
 # ──────────────────────────────────────────────
 
+
 def _create_sample_folder(tmpdir: str) -> str:
     """Create a folder with sample files for testing."""
     folder = os.path.join(tmpdir, "sample_docs")
@@ -24,7 +25,9 @@ def _create_sample_folder(tmpdir: str) -> str:
 
     # Text file
     with open(os.path.join(folder, "hello.txt"), "w", encoding="utf-8") as f:
-        f.write("Hello, this is a sample text file for FolderKnowledgeSiteGeneratorForAI testing.\nIt has multiple lines.\n")
+        f.write(
+            "Hello, this is a sample text file for FolderKnowledgeSiteGeneratorForAI testing.\nIt has multiple lines.\n"
+        )
 
     # Markdown file
     with open(os.path.join(folder, "readme.md"), "w", encoding="utf-8") as f:
@@ -54,17 +57,19 @@ def _create_large_sample_folder(tmpdir: str) -> str:
 #  Helper: run generate.py as subprocess
 # ──────────────────────────────────────────────
 
+
 def _run_generate(args: list) -> tuple:
     """Run generate.py with given args and return (returncode, stdout, stderr)."""
     cmd = [sys.executable, GENERATE_SCRIPT] + args
     # Use utf-8 encoding explicitly to handle Chinese output on Windows
-    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     return result.returncode, result.stdout, result.stderr
 
 
 # ──────────────────────────────────────────────
 #  Tests — TXT Export Mode (default, no --portal)
 # ──────────────────────────────────────────────
+
 
 class TestTextExportMode:
     """Test the traditional TXT export mode (default, no --portal)."""
@@ -134,6 +139,7 @@ class TestTextExportMode:
 #  Tests — Chunked Mode (--split-chunks)
 # ──────────────────────────────────────────────
 
+
 class TestChunkedMode:
     """Test the chunked (--split-chunks) output mode."""
 
@@ -142,17 +148,23 @@ class TestChunkedMode:
         folder = _create_sample_folder(str(tmp_path))
         output_dir = os.path.join(str(tmp_path), "chunked_out")
 
-        rc, stdout, stderr = _run_generate([
-            folder, "--split-chunks", "-o", output_dir,
-        ])
+        rc, stdout, stderr = _run_generate(
+            [
+                folder,
+                "--split-chunks",
+                "-o",
+                output_dir,
+            ]
+        )
 
         assert rc == 0, f"Expected exit code 0, got {rc}. stderr: {stderr}"
         assert os.path.isdir(output_dir), f"Output dir not created: {output_dir}"
         # Should have part files and index
         files = [f for f in os.listdir(output_dir) if f.startswith("part_") and f.endswith(".txt")]
         assert len(files) > 0, f"No part files found in {output_dir}: {os.listdir(output_dir)}"
-        assert any(f.startswith("sample_docs_index") for f in os.listdir(output_dir)), \
+        assert any(f.startswith("sample_docs_index") for f in os.listdir(output_dir)), (
             f"Index HTML not found in {output_dir}: {os.listdir(output_dir)}"
+        )
         assert "分片" in stdout or "chunk" in stdout.lower(), f"Unexpected stdout: {stdout}"
 
     def test_split_chunks_with_max_chars_limit(self, tmp_path):
@@ -161,10 +173,18 @@ class TestChunkedMode:
         output_dir = os.path.join(str(tmp_path), "chunked_limited")
 
         # Use very small max to test global limit with large chunk size
-        rc, stdout, stderr = _run_generate([
-            folder, "--split-chunks", "-o", output_dir,
-            "--chunk-size", "500000", "--max-chars", "100",
-        ])
+        rc, stdout, stderr = _run_generate(
+            [
+                folder,
+                "--split-chunks",
+                "-o",
+                output_dir,
+                "--chunk-size",
+                "500000",
+                "--max-chars",
+                "100",
+            ]
+        )
 
         assert rc == 0, f"Expected exit code 0, got {rc}. stderr: {stderr}"
         # Total content across all chunks should be ≤ ~100 chars
@@ -182,10 +202,16 @@ class TestChunkedMode:
         folder = _create_large_sample_folder(str(tmp_path))
         output_dir = os.path.join(str(tmp_path), "chunked_custom")
 
-        rc, stdout, stderr = _run_generate([
-            folder, "--split-chunks", "-o", output_dir,
-            "--chunk-size", "20000",
-        ])
+        rc, stdout, stderr = _run_generate(
+            [
+                folder,
+                "--split-chunks",
+                "-o",
+                output_dir,
+                "--chunk-size",
+                "20000",
+            ]
+        )
 
         assert rc == 0, f"Expected exit code 0, got {rc}. stderr: {stderr}"
         files = sorted([f for f in os.listdir(output_dir) if f.startswith("part_") and f.endswith(".txt")])
@@ -198,24 +224,32 @@ class TestChunkedMode:
         output_dir = os.path.join(str(tmp_path), "my_export")
 
         # First generate
-        rc, stdout, stderr = _run_generate([
-            folder, "--split-chunks", "-o", output_dir,
-        ])
+        rc, stdout, stderr = _run_generate(
+            [
+                folder,
+                "--split-chunks",
+                "-o",
+                output_dir,
+            ]
+        )
         assert rc == 0
 
         # Files should be directly in output_dir, not nested
         assert os.path.isdir(output_dir)
         direct_files = os.listdir(output_dir)
-        assert any(f.startswith("part_") for f in direct_files), \
+        assert any(f.startswith("part_") for f in direct_files), (
             f"part files should be directly in {output_dir}, got: {direct_files}"
+        )
         # There should be no subdirectory with the same name
-        assert not any(os.path.isdir(os.path.join(output_dir, name)) for name in direct_files), \
+        assert not any(os.path.isdir(os.path.join(output_dir, name)) for name in direct_files), (
             f"Should not have subdirectories in {output_dir}, got: {direct_files}"
+        )
 
 
 # ──────────────────────────────────────────────
 #  Tests — Portal Mode
 # ──────────────────────────────────────────────
+
 
 class TestPortalMode:
     """Test the portal (single-page) generation mode."""
@@ -225,9 +259,15 @@ class TestPortalMode:
         folder = _create_sample_folder(str(tmp_path))
         output_dir = os.path.join(str(tmp_path), "portal_output")
 
-        rc, stdout, stderr = _run_generate([
-            folder, "--portal-mode", "split", "-o", output_dir,
-        ])
+        rc, stdout, stderr = _run_generate(
+            [
+                folder,
+                "--portal-mode",
+                "split",
+                "-o",
+                output_dir,
+            ]
+        )
 
         assert rc == 0, f"Expected exit code 0, got {rc}. stderr: {stderr}"
         assert os.path.isdir(output_dir), f"Output dir not created: {output_dir}"
@@ -246,9 +286,15 @@ class TestPortalMode:
         folder = _create_sample_folder(str(tmp_path))
         output_dir = os.path.join(str(tmp_path), "portal_pages")
 
-        rc, stdout, stderr = _run_generate([
-            folder, "--portal-mode", "single", "-o", output_dir,
-        ])
+        rc, stdout, stderr = _run_generate(
+            [
+                folder,
+                "--portal-mode",
+                "single",
+                "-o",
+                output_dir,
+            ]
+        )
         assert rc == 0
 
         # Single-page portal — no docs/ subdirectory
@@ -269,24 +315,20 @@ class TestPortalMode:
         folder = _create_sample_folder(str(tmp_path))
         output_dir = os.path.join(str(tmp_path), "portal_no_skipped")
 
-        rc, stdout, stderr = _run_generate([
-            folder, "--portal", "-o", output_dir,
-            "--no-skipped"
-        ])
+        rc, stdout, stderr = _run_generate([folder, "--portal", "-o", output_dir, "--no-skipped"])
         assert rc == 0
 
     def test_portal_missing_folder(self, tmp_path):
         """Verify error on non-existent folder in portal mode."""
         output_dir = os.path.join(str(tmp_path), "portal_empty")
-        rc, stdout, stderr = _run_generate([
-            "/nonexistent/path", "--portal", "-o", output_dir
-        ])
+        rc, stdout, stderr = _run_generate(["/nonexistent/path", "--portal", "-o", output_dir])
         assert rc != 0, "Expected non-zero exit for invalid folder in portal mode"
 
 
 # ──────────────────────────────────────────────
 #  Tests — CLI Argument Validation
 # ──────────────────────────────────────────────
+
 
 class TestCLIArgs:
     """Test CLI argument parsing and validation."""

@@ -1,6 +1,7 @@
 """
 Shared pytest fixtures for FolderKnowledgeSiteGeneratorForAI tests.
 """
+
 import os
 import tempfile
 

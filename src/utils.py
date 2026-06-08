@@ -11,7 +11,7 @@ def human_readable_size(size_bytes: int) -> str:
     """
     if size_bytes == 0:
         return "0 B"
-    units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
     size = float(abs(size_bytes))
     unit_index = 0
     while size >= 1024.0 and unit_index < len(units) - 1:

@@ -19,6 +19,7 @@ from src.scanner import walk_files
 # Unicode BOM 检测 / BOM detection
 # ═══════════════════════════════════════════════════════════════════
 
+
 class TestUnicodeBOMDetection:
     """验证 UTF-8 BOM 文件被正确解析，不损坏内容 / Verify BOM files parse correctly."""
 
@@ -79,6 +80,7 @@ class TestUnicodeBOMDetection:
 # 损坏 Office 文件 / Malformed Office files
 # ═══════════════════════════════════════════════════════════════════
 
+
 class TestMalformedOfficeFiles:
     """验证损坏的 DOCX / XLSX 文件不会导致解析器崩溃 / Corrupt files don't crash."""
 
@@ -138,24 +140,30 @@ class TestMalformedOfficeFiles:
         os.close(fd)
         with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
             # python-docx 所需的最小部件 / Minimum required parts
-            zf.writestr("[Content_Types].xml",
+            zf.writestr(
+                "[Content_Types].xml",
                 '<?xml version="1.0"?>'
                 '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
                 '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
                 '<Default Extension="xml" ContentType="application/xml"/>'
                 '<Override PartName="/word/document.xml" '
                 'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-                '</Types>')
-            zf.writestr("_rels/.rels",
+                "</Types>",
+            )
+            zf.writestr(
+                "_rels/.rels",
                 '<?xml version="1.0"?>'
                 '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
                 '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
-                '</Relationships>')
-            zf.writestr("word/document.xml",
+                "</Relationships>",
+            )
+            zf.writestr(
+                "word/document.xml",
                 '<?xml version="1.0"?>'
                 '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-                '<w:body><w:p><w:r><w:t>Minimal docx</w:t></w:r></w:p></w:body>'
-                '</w:document>')
+                "<w:body><w:p><w:r><w:t>Minimal docx</w:t></w:r></w:p></w:body>"
+                "</w:document>",
+            )
         try:
             result = parse_file(path)
             assert result is not None
@@ -168,6 +176,7 @@ class TestMalformedOfficeFiles:
 # ═══════════════════════════════════════════════════════════════════
 # 并发解析（线程安全）/ Concurrent parsing
 # ═══════════════════════════════════════════════════════════════════
+
 
 class TestConcurrentParsing:
     """验证多线程并发解析文本文件的线程安全性 / Thread-safety."""
@@ -250,6 +259,7 @@ class TestConcurrentParsing:
 # 大文件分块 / Huge file chunking
 # ═══════════════════════════════════════════════════════════════════
 
+
 class TestHugeFileChunking:
     """验证大文件在分块模式下正确处理 / Large file chunking."""
 
@@ -278,12 +288,9 @@ class TestHugeFileChunking:
         chunk = FileChunk(chunk_index=0, chunk_size=10_000)
         # 模拟添加一个大于分块的文件 / Simulate oversized file
         large_content = "X" * 25_000
-        chunk.files.append({
-            "rel_path": "big_file.txt",
-            "text": large_content,
-            "size": len(large_content),
-            "size_hr": "25 KB"
-        })
+        chunk.files.append(
+            {"rel_path": "big_file.txt", "text": large_content, "size": len(large_content), "size_hr": "25 KB"}
+        )
 
         # 序列化时不应崩溃 / No crash on serialize
         assert chunk.files[0]["size"] == 25_000
@@ -293,12 +300,7 @@ class TestHugeFileChunking:
         from src.chunker import FileChunk
 
         chunk = FileChunk(chunk_index=0, chunk_size=10_000)
-        chunk.files.append({
-            "rel_path": "empty.txt",
-            "text": "",
-            "size": 0,
-            "size_hr": "0 B"
-        })
+        chunk.files.append({"rel_path": "empty.txt", "text": "", "size": 0, "size_hr": "0 B"})
 
         assert len(chunk.files) == 1
         assert chunk.files[0]["text"] == ""
@@ -307,6 +309,7 @@ class TestHugeFileChunking:
 # ═══════════════════════════════════════════════════════════════════
 # 符号链接处理 / Symlink handling
 # ═══════════════════════════════════════════════════════════════════
+
 
 class TestSymlinkHandling:
     """验证符号链接被优雅处理（跳过，不追踪）/ Symlink graceful handling."""

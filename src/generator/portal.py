@@ -19,6 +19,7 @@ Design decisions:
 - The shared data collection layer eliminates ~60% code duplication between
   generate_portal() and generate_portal_split().
 """
+
 from __future__ import annotations
 
 import os
@@ -59,6 +60,7 @@ _DEFAULT_MAX_CHARS_PER_FILE = const.DEFAULT_MAX_CHARS_PER_FILE
 #  Utility functions
 # ============================================================
 
+
 def extract_keywords(text: str, max_words: int = 8) -> list:
     """Extract keywords from text using frequency + stop word filtering.
 
@@ -77,40 +79,325 @@ def extract_keywords(text: str, max_words: int = 8) -> list:
     """
     # Chinese: extract 2-8 character sequences to capture multi-character terms
     # like "人工智能" (AI), "机器学习" (machine learning) etc.
-    chinese_chars = re.findall(r'[\u4e00-\u9fff]{2,8}', text)
-    english_words = re.findall(r'\b[a-zA-Z]{3,20}\b', text.lower())
+    chinese_chars = re.findall(r"[\u4e00-\u9fff]{2,8}", text)
+    english_words = re.findall(r"\b[a-zA-Z]{3,20}\b", text.lower())
 
     stop_words = {
-        'the', 'and', 'for', 'that', 'this', 'with', 'from', 'have', 'are', 'was', 'were',
-        'been', 'being', 'has', 'had', 'does', 'did', 'will', 'would', 'could', 'should',
-        'may', 'might', 'about', 'into', 'over', 'after', 'before', 'between', 'under',
-        'above', 'such', 'only', 'other', 'than', 'then', 'also', 'very', 'just', 'more',
-        'some', 'these', 'those', 'html', 'class', 'span', 'div', 'style', 'width',
-        'height', 'which', 'what', 'when', 'where', 'there', 'their', 'they', 'them',
-        'like', 'here', 'each', 'both', 'most', 'many', 'much', 'must', 'your', 'its',
-        'can', 'see', 'way', 'use', 'make', 'new', 'one', 'two', 'how', 'all', 'any',
-        'not', 'but', 'who', 'out', 'down', 'now', 'even', 'back', 'still', 'well', 'too',
-        'own', 'while', 'because', 'ever', 'every', 'same', 'through', 'thing', 'things',
-        'number', 'part', 'place', 'long', 'time', 'work', 'year', 'used', 'using',
-        'based', 'also', 'called', 'without', 'within', 'across', 'along', 'among',
-        'around', 'first', 'second', 'last', 'next', 'data', 'text', 'file', 'files',
-        'code', 'type', 'string', 'value', 'name', 'key', 'page', 'list', 'line', 'lines',
-        'word', 'words', 'char', 'chars', 'info', 'information', 'description', 'default',
-        '的', '了', '在', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上',
-        '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己',
-        '这', '他', '她', '它', '们', '来', '与', '及', '或', '以', '而', '但', '又', '被',
-        '让', '对', '从', '把', '向', '为', '比', '等', '能', '可', '所', '如', '之', '其',
-        '中', '将', '还', '做', '做', '给', '用', '更', '最', '并', '过', '开', '只', '有',
-        '学', '年', '月', '日', '时', '间', '后', '前', '下', '此', '因', '如', '何', '道',
-        '种', '些', '几', '那', '哪', '两', '多', '少', '个', '每', '既', '除了', '虽然',
-        '因为', '所以', '但是', '如果', '可以', '应该', '需要', '已经', '没有', '这些',
-        '那些', '关于', '由于', '而且', '或者', '不是', '就是', '而是', '还是', '并且',
-        '从而', '因此', '其中', '之一', '之间', '方面', '部分', '同时', '之后', '之前',
-        '今天', '明天', '昨天', '现在', '然后', '比如', '比较', '非常', '一定', '可能',
-        '全部', '最后', '开始', '继续', '以及', '不过', '只是', '为了', '那里', '这里',
-        '怎么', '什么', '如果', '否则', '另外', '帮助', '关于', '使用', '提供', '通过',
-        '进行', '包括', '还有', '以及', '其他', '其中', '由于', '因此', '所有', '功能',
-        '支持', '方法', '方式', '配置', '设置', '参数',
+        "the",
+        "and",
+        "for",
+        "that",
+        "this",
+        "with",
+        "from",
+        "have",
+        "are",
+        "was",
+        "were",
+        "been",
+        "being",
+        "has",
+        "had",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "about",
+        "into",
+        "over",
+        "after",
+        "before",
+        "between",
+        "under",
+        "above",
+        "such",
+        "only",
+        "other",
+        "than",
+        "then",
+        "also",
+        "very",
+        "just",
+        "more",
+        "some",
+        "these",
+        "those",
+        "html",
+        "class",
+        "span",
+        "div",
+        "style",
+        "width",
+        "height",
+        "which",
+        "what",
+        "when",
+        "where",
+        "there",
+        "their",
+        "they",
+        "them",
+        "like",
+        "here",
+        "each",
+        "both",
+        "most",
+        "many",
+        "much",
+        "must",
+        "your",
+        "its",
+        "can",
+        "see",
+        "way",
+        "use",
+        "make",
+        "new",
+        "one",
+        "two",
+        "how",
+        "all",
+        "any",
+        "not",
+        "but",
+        "who",
+        "out",
+        "down",
+        "now",
+        "even",
+        "back",
+        "still",
+        "well",
+        "too",
+        "own",
+        "while",
+        "because",
+        "ever",
+        "every",
+        "same",
+        "through",
+        "thing",
+        "things",
+        "number",
+        "part",
+        "place",
+        "long",
+        "time",
+        "work",
+        "year",
+        "used",
+        "using",
+        "based",
+        "also",
+        "called",
+        "without",
+        "within",
+        "across",
+        "along",
+        "among",
+        "around",
+        "first",
+        "second",
+        "last",
+        "next",
+        "data",
+        "text",
+        "file",
+        "files",
+        "code",
+        "type",
+        "string",
+        "value",
+        "name",
+        "key",
+        "page",
+        "list",
+        "line",
+        "lines",
+        "word",
+        "words",
+        "char",
+        "chars",
+        "info",
+        "information",
+        "description",
+        "default",
+        "的",
+        "了",
+        "在",
+        "是",
+        "我",
+        "有",
+        "和",
+        "就",
+        "不",
+        "人",
+        "都",
+        "一",
+        "一个",
+        "上",
+        "也",
+        "很",
+        "到",
+        "说",
+        "要",
+        "去",
+        "你",
+        "会",
+        "着",
+        "没有",
+        "看",
+        "好",
+        "自己",
+        "这",
+        "他",
+        "她",
+        "它",
+        "们",
+        "来",
+        "与",
+        "及",
+        "或",
+        "以",
+        "而",
+        "但",
+        "又",
+        "被",
+        "让",
+        "对",
+        "从",
+        "把",
+        "向",
+        "为",
+        "比",
+        "等",
+        "能",
+        "可",
+        "所",
+        "如",
+        "之",
+        "其",
+        "中",
+        "将",
+        "还",
+        "做",
+        "做",
+        "给",
+        "用",
+        "更",
+        "最",
+        "并",
+        "过",
+        "开",
+        "只",
+        "有",
+        "学",
+        "年",
+        "月",
+        "日",
+        "时",
+        "间",
+        "后",
+        "前",
+        "下",
+        "此",
+        "因",
+        "如",
+        "何",
+        "道",
+        "种",
+        "些",
+        "几",
+        "那",
+        "哪",
+        "两",
+        "多",
+        "少",
+        "个",
+        "每",
+        "既",
+        "除了",
+        "虽然",
+        "因为",
+        "所以",
+        "但是",
+        "如果",
+        "可以",
+        "应该",
+        "需要",
+        "已经",
+        "没有",
+        "这些",
+        "那些",
+        "关于",
+        "由于",
+        "而且",
+        "或者",
+        "不是",
+        "就是",
+        "而是",
+        "还是",
+        "并且",
+        "从而",
+        "因此",
+        "其中",
+        "之一",
+        "之间",
+        "方面",
+        "部分",
+        "同时",
+        "之后",
+        "之前",
+        "今天",
+        "明天",
+        "昨天",
+        "现在",
+        "然后",
+        "比如",
+        "比较",
+        "非常",
+        "一定",
+        "可能",
+        "全部",
+        "最后",
+        "开始",
+        "继续",
+        "以及",
+        "不过",
+        "只是",
+        "为了",
+        "那里",
+        "这里",
+        "怎么",
+        "什么",
+        "如果",
+        "否则",
+        "另外",
+        "帮助",
+        "关于",
+        "使用",
+        "提供",
+        "通过",
+        "进行",
+        "包括",
+        "还有",
+        "以及",
+        "其他",
+        "其中",
+        "由于",
+        "因此",
+        "所有",
+        "功能",
+        "支持",
+        "方法",
+        "方式",
+        "配置",
+        "设置",
+        "参数",
     }
 
     counter: Counter = Counter()
@@ -123,7 +410,7 @@ def extract_keywords(text: str, max_words: int = 8) -> list:
 
     keywords = []
     for word, count in counter.most_common(max_words * 2):
-        if re.match(r'^\d+$', word):
+        if re.match(r"^\d+$", word):
             continue
         keywords.append(word)
         if len(keywords) >= max_words:
@@ -135,8 +422,14 @@ def _is_readme_file(rel_path: str) -> bool:
     """Return True if the file is a README (any common extension)."""
     fname = os.path.basename(rel_path).lower()
     return fname in (
-        'readme.md', 'readme.txt', 'readme', 'readme.rst', 'readme.markdown',
-        'readme.org', 'readme.adoc', 'readme.asciidoc',
+        "readme.md",
+        "readme.txt",
+        "readme",
+        "readme.rst",
+        "readme.markdown",
+        "readme.org",
+        "readme.adoc",
+        "readme.asciidoc",
     )
 
 
@@ -144,9 +437,11 @@ def _is_readme_file(rel_path: str) -> bool:
 #  HTML escaping
 # ============================================================
 
+
 def escape_html(s: str) -> str:
     """Minimal HTML escape for safe attribute insertion."""
     from html import escape as _he
+
     return _he(s)
 
 
@@ -154,11 +449,8 @@ def escape_html(s: str) -> str:
 #  File tree builder (single-page mode)
 # ============================================================
 
-def build_file_tree_html(
-    folder_path: str,
-    parsed_files: Optional[set] = None,
-    include_skipped: bool = True
-) -> str:
+
+def build_file_tree_html(folder_path: str, parsed_files: Optional[set] = None, include_skipped: bool = True) -> str:
     """Build an ASCII-tree diagram of the folder structure for single-page mode.
 
     Design notes:
@@ -169,15 +461,21 @@ def build_file_tree_html(
     """
     lines: list[str] = []
     _walk_and_render(
-        folder_path, folder_path, lines, prefix="",
+        folder_path,
+        folder_path,
+        lines,
+        prefix="",
         parsed_files=parsed_files or set(),
         include_skipped=include_skipped,
     )
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 def _walk_and_render(
-    root: str, dirpath: str, lines: list, prefix: str,
+    root: str,
+    dirpath: str,
+    lines: list,
+    prefix: str,
     parsed_files: Optional[set] = None,
     include_skipped: bool = True,
 ):
@@ -203,29 +501,29 @@ def _walk_and_render(
         rel_path = os.path.relpath(full_path, root)
 
         if os.path.isdir(full_path):
-            if name in const.FILTER_DIRS or name.startswith('.'):
+            if name in const.FILTER_DIRS or name.startswith("."):
                 continue
-            items.append(('dir', name, full_path, rel_path))
+            items.append(("dir", name, full_path, rel_path))
         else:
             if not include_skipped and const.should_filter_file(rel_path):
                 continue
-            items.append(('file', name, full_path, rel_path))
+            items.append(("file", name, full_path, rel_path))
 
-    dirs = [(n, f, r) for t, n, f, r in items if t == 'dir']
-    files = [(n, f, r) for t, n, f, r in items if t == 'file']
+    dirs = [(n, f, r) for t, n, f, r in items if t == "dir"]
+    files = [(n, f, r) for t, n, f, r in items if t == "file"]
     all_items = dirs + files
 
     for idx, (name, full_path, rel_path) in enumerate(all_items):
-        is_last = (idx == len(all_items) - 1)
-        connector = '└──' if is_last else '├──'
-        child_prefix = prefix + ('    ' if is_last else '│   ')
+        is_last = idx == len(all_items) - 1
+        connector = "└──" if is_last else "├──"
+        child_prefix = prefix + ("    " if is_last else "│   ")
 
         if os.path.isdir(full_path):
             lines.append(
                 f'<li class="tree-folder">'
                 f'<span class="tree-prefix">{prefix}{connector}</span>'
                 f'<span class="tree-folder-name">📁 {name}</span>'
-                f'</li>'
+                f"</li>"
             )
             _walk_and_render(root, full_path, lines, child_prefix, parsed_files, include_skipped)
         else:
@@ -234,31 +532,32 @@ def _walk_and_render(
             is_readme = _is_readme_file(rel_path)
 
             is_parsed = rel_path in parsed_files
-            css_class = 'tree-file'
+            css_class = "tree-file"
             if is_readme:
-                css_class += ' tree-readme'
+                css_class += " tree-readme"
             if not is_parsed:
-                css_class += ' skipped'
+                css_class += " skipped"
 
             # Base64 encode the filename to avoid escaping issues with special characters
-            filename_b64 = base64.b64encode(rel_path.replace('\\', '/').encode('utf-8')).decode('ascii')
+            filename_b64 = base64.b64encode(rel_path.replace("\\", "/").encode("utf-8")).decode("ascii")
             if is_parsed:
-                link_html = f'<a onclick="jumpToFile(\'{filename_b64}\')">📄 {name}</a>'
+                link_html = f"<a onclick=\"jumpToFile('{filename_b64}')\">📄 {name}</a>"
             else:
                 link_html = f'<span class="unparsed">⏭️ {name}</span>'
 
             lines.append(
                 f'<li class="{css_class}">'
                 f'<span class="tree-prefix">{prefix}{connector}</span>'
-                f'{link_html}'
+                f"{link_html}"
                 f'<span class="tree-size"> {size_hr}</span>'
-                f'</li>'
+                f"</li>"
             )
 
 
 # ============================================================
 #  Shared document collection layer
 # ============================================================
+
 
 def collect_portal_documents(
     folder_path: str,
@@ -299,20 +598,25 @@ def collect_portal_documents(
     _walked_set = {fp for fp, _ in all_files}
     scanner_filtered_count = 0
     for _dp, _dns, _fns in os.walk(folder_path):
-        _dns[:] = [d for d in _dns if d not in const.FILTER_DIRS and not d.startswith('.')]
+        _dns[:] = [d for d in _dns if d not in const.FILTER_DIRS and not d.startswith(".")]
         for _fn in _fns:
             _fp = os.path.join(_dp, _fn)
             if _fp not in _walked_set:
                 _bn = os.path.basename(_fn)
-                if not _bn.startswith('.') and _bn not in ('Thumbs.db', 'desktop.ini', '.DS_Store'):
+                if not _bn.startswith(".") and _bn not in ("Thumbs.db", "desktop.ini", ".DS_Store"):
                     scanner_filtered_count += 1
 
     if total_files == 0 and scanner_filtered_count == 0:
         logger.warning("No parseable files found in %s", folder_path)
         return PortalBuildResult(
-            docs_meta=[], docs_texts=[],
-            parsed_count=0, skipped_count=0, error_count=0,
-            total_chars=0, folder_name=folder_name, all_files=[],
+            docs_meta=[],
+            docs_texts=[],
+            parsed_count=0,
+            skipped_count=0,
+            error_count=0,
+            total_chars=0,
+            folder_name=folder_name,
+            all_files=[],
         )
 
     docs_meta: List[PortalDocMeta] = []
@@ -324,10 +628,10 @@ def collect_portal_documents(
     skip_by_reason: dict[str, int] = {}
 
     if show_progress:
-        if sys.platform == 'win32':
-            if hasattr(sys.stdout, 'reconfigure'):
+        if sys.platform == "win32":
+            if hasattr(sys.stdout, "reconfigure"):
                 try:
-                    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+                    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
                 except Exception:
                     pass
         print("  [Scan] Found %d files, parsing..." % total_files)
@@ -340,10 +644,8 @@ def collect_portal_documents(
             pct = (file_idx + 1) / total_files * 100
             bar_len = 30
             filled = int(bar_len * (file_idx + 1) / total_files)
-            bar = '#' * filled + '.' * (bar_len - filled)
-            print("\r  [%s] %d/%d (%.0f%%)" % (
-                bar, file_idx + 1, total_files, pct),
-                end='', flush=True)
+            bar = "#" * filled + "." * (bar_len - filled)
+            print("\r  [%s] %d/%d (%.0f%%)" % (bar, file_idx + 1, total_files, pct), end="", flush=True)
 
         try:
             result = parse_file(full_path)
@@ -362,17 +664,13 @@ def collect_portal_documents(
 
         if result is None:
             skipped_count += 1
-            skip_by_reason['parser returned no content'] = (
-                skip_by_reason.get('parser returned no content', 0) + 1
-            )
+            skip_by_reason["parser returned no content"] = skip_by_reason.get("parser returned no content", 0) + 1
             continue
 
         text = (result.get("text") or "").strip()
         if not text:
             skipped_count += 1
-            skip_by_reason['empty content after parsing'] = (
-                skip_by_reason.get('empty content after parsing', 0) + 1
-            )
+            skip_by_reason["empty content after parsing"] = skip_by_reason.get("empty content after parsing", 0) + 1
             continue
 
         char_count = len(text)
@@ -385,15 +683,12 @@ def collect_portal_documents(
         #     (e.g., minified JSON) and clean-splitting isn't practical.
         if max_chars_per_file and char_count > max_chars_per_file:
             truncated_text = text[:max_chars_per_file]
-            last_newline = truncated_text.rfind('\n')
+            last_newline = truncated_text.rfind("\n")
             if last_newline > max_chars_per_file * 0.5:
                 truncated_text = truncated_text[:last_newline]
             text = truncated_text
             if language == "zh":
-                text += (
-                    f"\n\n... [截断：原文 {char_count:,} 字符，仅展示前 "
-                    f"{max_chars_per_file:,} 字符] ...\n"
-                )
+                text += f"\n\n... [截断：原文 {char_count:,} 字符，仅展示前 {max_chars_per_file:,} 字符] ...\n"
             else:
                 text += (
                     f"\n\n... [Truncated: original {char_count:,} chars, "
@@ -403,26 +698,30 @@ def collect_portal_documents(
 
         total_chars += char_count
         keywords = extract_keywords(text)
-        preview = text[:200].replace('\n', ' ').strip()
+        preview = text[:200].replace("\n", " ").strip()
 
-        docs_meta.append(PortalDocMeta(
-            title=rel_path,
-            file=rel_path,
-            size=char_count,
-            size_hr=size_hr,
-            preview=preview,
-            tags=keywords[:5],
-            skipped=False,
-            mtime=mtime_str,
-        ))
-        docs_texts.append(PortalDocText(
-            title=rel_path,
-            text=text,
-            size=char_count,
-            file_type=_get_file_type(rel_path),
-            size_hr=size_hr,
-            tags=keywords[:5],
-        ))
+        docs_meta.append(
+            PortalDocMeta(
+                title=rel_path,
+                file=rel_path,
+                size=char_count,
+                size_hr=size_hr,
+                preview=preview,
+                tags=keywords[:5],
+                skipped=False,
+                mtime=mtime_str,
+            )
+        )
+        docs_texts.append(
+            PortalDocText(
+                title=rel_path,
+                text=text,
+                size=char_count,
+                file_type=_get_file_type(rel_path),
+                size_hr=size_hr,
+                tags=keywords[:5],
+            )
+        )
         parsed_count += 1
 
     if show_progress:
@@ -454,6 +753,7 @@ def collect_portal_documents(
 # ============================================================
 #  Portal generation entry points
 # ============================================================
+
 
 def generate_portal(
     folder_path: str,
@@ -510,8 +810,12 @@ def generate_portal(
     if build_result["parsed_count"] == 0 and build_result["skipped_count"] == 0:
         logger.warning("No parseable files found in %s", folder_path)
         return {
-            "doc_count": 0, "total_chars": 0, "skipped": 0, "errors": 0,
-            "output_dir": output_dir, "index_file": None,
+            "doc_count": 0,
+            "total_chars": 0,
+            "skipped": 0,
+            "errors": 0,
+            "output_dir": output_dir,
+            "index_file": None,
             "folder_name": build_result["folder_name"],
         }
 
@@ -536,7 +840,7 @@ def generate_portal(
         language=language,
     )
     index_path = os.path.join(output_dir, "index.html")
-    with open(index_path, 'w', encoding='utf-8') as f:
+    with open(index_path, "w", encoding="utf-8") as f:
         f.write(index_html)
     logger.info("Portal index: %s", index_path)
 
@@ -614,8 +918,12 @@ def generate_portal_split(
     if build_result["parsed_count"] == 0 and build_result["skipped_count"] == 0:
         logger.warning("No parseable files found in %s", folder_path)
         return {
-            "doc_count": 0, "total_chars": 0, "skipped": 0, "errors": 0,
-            "output_dir": output_dir, "index_file": None,
+            "doc_count": 0,
+            "total_chars": 0,
+            "skipped": 0,
+            "errors": 0,
+            "output_dir": output_dir,
+            "index_file": None,
             "folder_name": build_result["folder_name"],
         }
 
@@ -627,7 +935,7 @@ def generate_portal_split(
         subpage_html = build_subpage_html(doc_data, build_result["folder_name"], language)  # type: ignore[arg-type]
         subpage_filename = _path_to_subpage_filename(doc_data["title"])
         subpage_path = os.path.join(docs_dir, subpage_filename)
-        with open(subpage_path, 'w', encoding='utf-8') as f:
+        with open(subpage_path, "w", encoding="utf-8") as f:
             f.write(subpage_html)
 
     # Build index page
@@ -649,15 +957,15 @@ def generate_portal_split(
 
     # Inject search index JSON before closing </body>
     search_script = (
-        f'<script>\n'
-        f'// ── Search index data for split-file mode ──\n'
-        f'const SEARCH_INDEX = {search_index_json};\n'
-        f'</script>\n'
+        f"<script>\n"
+        f"// ── Search index data for split-file mode ──\n"
+        f"const SEARCH_INDEX = {search_index_json};\n"
+        f"</script>\n"
     )
-    index_html = index_html.replace('</body>', search_script + '\n</body>')
+    index_html = index_html.replace("</body>", search_script + "\n</body>")
 
     index_path = os.path.join(output_dir, "index.html")
-    with open(index_path, 'w', encoding='utf-8') as f:
+    with open(index_path, "w", encoding="utf-8") as f:
         f.write(index_html)
     logger.info("Split portal index: %s", index_path)
     logger.info("Subpages directory: %s", docs_dir)

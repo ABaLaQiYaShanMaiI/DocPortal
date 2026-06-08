@@ -30,8 +30,10 @@ try:
 except ImportError:
     SEPARATOR_LINE = "=" * 60  # fallback
 
+
 class FileEntry(TypedDict):
     """Type for a single file entry in chunking operations."""
+
     rel_path: str
     text: str
     size_hr: str
@@ -69,12 +71,14 @@ class FileChunk:
 
     def add_file(self, rel_path: str, text: str, size_hr: str):
         """Add a file entry to this chunk."""
-        self.files.append({
-            "rel_path": rel_path,
-            "text": text,
-            "size": len(text),
-            "size_hr": size_hr,
-        })
+        self.files.append(
+            {
+                "rel_path": rel_path,
+                "text": text,
+                "size": len(text),
+                "size_hr": size_hr,
+            }
+        )
         self.accumulated_chars += len(text)
 
     def get_header(self, folder_name: str) -> str:
@@ -100,12 +104,7 @@ class FileChunk:
         sep = SEPARATOR_LINE
         for f in self.files:
             block = (
-                f"{sep}\n"
-                f"File: {f['rel_path']}\n"
-                f"Size: {f['size_hr']}\n"
-                f"Characters: {f['size']:,}\n"
-                f"{sep}\n"
-                f"{f['text']}\n\n"
+                f"{sep}\nFile: {f['rel_path']}\nSize: {f['size_hr']}\nCharacters: {f['size']:,}\n{sep}\n{f['text']}\n\n"
             )
             parts.append(block)
         return "".join(parts)
@@ -153,12 +152,14 @@ def _collect_files(folder_path: str, max_chars: Optional[int] = None) -> Tuple[L
             continue
         file_size = os.path.getsize(full_path)
         size_hr = human_readable_size(file_size)
-        raw_entries.append({
-            "rel_path": rel_path,
-            "text": text,
-            "size_hr": size_hr,
-            "size": len(text),
-        })
+        raw_entries.append(
+            {
+                "rel_path": rel_path,
+                "text": text,
+                "size_hr": size_hr,
+                "size": len(text),
+            }
+        )
         total_size += len(text)
 
     # Sort by relative path BEFORE applying max_chars limit
@@ -179,18 +180,20 @@ def _collect_files(folder_path: str, max_chars: Optional[int] = None) -> Tuple[L
                 break
             # Find nearest newline boundary for cleaner truncation
             truncated = text[:allowed]
-            last_newline = truncated.rfind('\n')
+            last_newline = truncated.rfind("\n")
             if last_newline > allowed * 0.5:
                 truncated = truncated[:last_newline]
             text = truncated
             limit_reached = True
 
-        entries.append({
-            "rel_path": entry["rel_path"],
-            "text": text,
-            "size_hr": entry["size_hr"],
-            "size": len(text),
-        })
+        entries.append(
+            {
+                "rel_path": entry["rel_path"],
+                "text": text,
+                "size_hr": entry["size_hr"],
+                "size": len(text),
+            }
+        )
         accumulated += len(text)
 
     return entries, accumulated
@@ -298,13 +301,11 @@ def chunk_files(
         if force_split:
             logger.warning(
                 "🔪 %d file(s) exceed chunk size (%s chars) — auto-split across multiple chunks:",
-                len(oversized_files), f"{chunk_size:,}"
+                len(oversized_files),
+                f"{chunk_size:,}",
             )
         else:
-            logger.warning(
-                "⚠️  %d file(s) exceed chunk size (%s chars):",
-                len(oversized_files), f"{chunk_size:,}"
-            )
+            logger.warning("⚠️  %d file(s) exceed chunk size (%s chars):", len(oversized_files), f"{chunk_size:,}")
         for f in oversized_files:
             logger.warning("     - %s", f)
         if not force_split:
@@ -350,7 +351,9 @@ def generate_index_html(
                 f'            <li class="file-entry">{escape(f["rel_path"])} '
                 f'<span class="file-size">({f["size_hr"]}, {f["size"]:,} chars)</span></li>'
             )
-        file_list_html = "\n".join(file_list_items) if file_list_items else "            <li class=\"empty\">(empty chunk)</li>"
+        file_list_html = (
+            "\n".join(file_list_items) if file_list_items else '            <li class="empty">(empty chunk)</li>'
+        )
 
         chunk_rows.append(f"""
         <div class="chunk-card">
@@ -568,8 +571,7 @@ def write_chunks(
         text_content = chunk.to_text(folder_name)
         with open(part_path, "w", encoding="utf-8") as f:
             f.write(text_content)
-        logger.info("Wrote %s (%d chars, %d files)",
-                     part_name, chunk.accumulated_chars, len(chunk.files))
+        logger.info("Wrote %s (%d chars, %d files)", part_name, chunk.accumulated_chars, len(chunk.files))
 
     # 4. Write index HTML
     index_html = generate_index_html(
@@ -609,7 +611,10 @@ def write_chunks(
     for chunk in chunks:
         logger.info(
             "         %3d. part_%03d.txt  (%s chars, %d files)",
-            chunk.index + 1, chunk.index + 1, f"{chunk.accumulated_chars:,}", len(chunk.files)
+            chunk.index + 1,
+            chunk.index + 1,
+            f"{chunk.accumulated_chars:,}",
+            len(chunk.files),
         )
     logger.info("")
     logger.info("  📋  Usage: Submit each part_*.txt to your AI in order.")

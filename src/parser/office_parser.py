@@ -17,24 +17,28 @@ logger = logging.getLogger(__name__)
 # ── Try to import centralized constants ──
 try:
     from src.constants import (
-        LEGACY_MAP, WPS_MAP, SEPARATOR_LINE, SEPARATOR_WIDTH,
+        LEGACY_MAP,
+        WPS_MAP,
+        SEPARATOR_LINE,
+        SEPARATOR_WIDTH,
     )
 except ImportError:
     SEPARATOR_WIDTH = 60
     SEPARATOR_LINE = "=" * SEPARATOR_WIDTH
     LEGACY_MAP = {
-        'doc': ('docx', 'MS Word 97-2003'),
-        'ppt': ('pptx', 'MS PowerPoint 97-2003'),
-        'xls': ('xlsx', 'MS Excel 97-2003'),
+        "doc": ("docx", "MS Word 97-2003"),
+        "ppt": ("pptx", "MS PowerPoint 97-2003"),
+        "xls": ("xlsx", "MS Excel 97-2003"),
     }
     WPS_MAP = {
-        'wps': ('docx', 'WPS Writer'),
-        'et': ('xlsx', 'WPS Spreadsheet'),
-        'dps': ('pptx', 'WPS Presentation'),
+        "wps": ("docx", "WPS Writer"),
+        "et": ("xlsx", "WPS Spreadsheet"),
+        "dps": ("pptx", "WPS Presentation"),
     }
 
 
 # ── Temp directory context manager ──
+
 
 @contextmanager
 def _temp_conversion_dir(prefix: str = "office_conv_"):
@@ -64,6 +68,7 @@ def _temp_conversion_dir(prefix: str = "office_conv_"):
 
 # ── External tool locators ──
 
+
 def _find_libreoffice() -> Optional[str]:
     """Try to locate LibreOffice executable on the system.
 
@@ -73,14 +78,14 @@ def _find_libreoffice() -> Optional[str]:
         Absolute path to soffice/swriter executable, or None if not found.
     """
     candidates = []
-    if sys.platform == 'win32':
+    if sys.platform == "win32":
         candidates = [
             r"C:\Program Files\LibreOffice\program\soffice.exe",
             r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
             r"C:\Program Files\LibreOffice\program\swriter.exe",
             r"C:\Program Files (x86)\LibreOffice\program\swriter.exe",
         ]
-    elif sys.platform == 'darwin':
+    elif sys.platform == "darwin":
         candidates = [
             "/Applications/LibreOffice.app/Contents/MacOS/soffice",
             "/Applications/LibreOffice.app/Contents/MacOS/swriter",
@@ -102,8 +107,8 @@ def _find_wps() -> Optional[str]:
     Returns:
         Absolute path to wps.exe, or None if not found.
     """
-    if sys.platform == 'win32':
-        for ver in ['12', '11', '10', '9', '8', '7']:
+    if sys.platform == "win32":
+        for ver in ["12", "11", "10", "9", "8", "7"]:
             p = r"C:\Program Files (x86)\WPS Office\{}\wps.exe".format(ver)
             if os.path.isfile(p):
                 logger.debug("Found WPS at: %s", p)
@@ -112,6 +117,7 @@ def _find_wps() -> Optional[str]:
 
 
 # ── File conversion utilities ──
+
 
 def _convert_via_libreoffice(src_path: str, target_ext: str) -> Optional[str]:
     """Convert a legacy Office file to modern format using LibreOffice CLI.
@@ -129,9 +135,8 @@ def _convert_via_libreoffice(src_path: str, target_ext: str) -> Optional[str]:
         return None
     with _temp_conversion_dir(prefix="office_conv_") as tmp_dir:
         try:
-            cmd = [lo_path, '--headless', '--convert-to', target_ext.lstrip('.'),
-                   '--outdir', tmp_dir, src_path]
-            logger.debug("Running LibreOffice conversion: %s", ' '.join(cmd))
+            cmd = [lo_path, "--headless", "--convert-to", target_ext.lstrip("."), "--outdir", tmp_dir, src_path]
+            logger.debug("Running LibreOffice conversion: %s", " ".join(cmd))
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             if result.returncode != 0:
                 logger.warning("LibreOffice conversion failed for %s: %s", src_path, result.stderr.strip())
@@ -142,7 +147,9 @@ def _convert_via_libreoffice(src_path: str, target_ext: str) -> Optional[str]:
                 if os.path.getsize(converted) == 0:
                     logger.warning("LibreOffice produced empty file for %s (0 bytes)", src_path)
                     return None
-                logger.debug("LibreOffice converted %s -> %s (%d bytes)", src_path, converted, os.path.getsize(converted))
+                logger.debug(
+                    "LibreOffice converted %s -> %s (%d bytes)", src_path, converted, os.path.getsize(converted)
+                )
                 return converted
             logger.warning("Converted file not found: %s", converted)
             return None
@@ -175,11 +182,17 @@ def _convert_via_wps(src_path: str, target_ext: str) -> Optional[str]:
     if wps_path:
         with _temp_conversion_dir(prefix="wps_conv_") as tmp_dir:
             try:
-                base_name = os.path.basename(src_path).rsplit('.', 1)[0]
-                cmd = [wps_path, '/convert', src_path,
-                       '/output', os.path.join(tmp_dir, base_name + target_ext),
-                       '/format', target_ext.lstrip('.')]
-                logger.debug("Running WPS conversion: %s", ' '.join(cmd))
+                base_name = os.path.basename(src_path).rsplit(".", 1)[0]
+                cmd = [
+                    wps_path,
+                    "/convert",
+                    src_path,
+                    "/output",
+                    os.path.join(tmp_dir, base_name + target_ext),
+                    "/format",
+                    target_ext.lstrip("."),
+                ]
+                logger.debug("Running WPS conversion: %s", " ".join(cmd))
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
                 if result.returncode == 0:
                     base = os.path.splitext(os.path.basename(src_path))[0]
@@ -224,6 +237,7 @@ def _auto_convert(src_path: str, target_ext: str) -> Optional[str]:
 
 # ── Main parse entry point ──
 
+
 def parse_office(
     filepath: str,
     filetype: str,
@@ -261,53 +275,57 @@ def parse_office(
     legacy_map: Dict[str, Tuple[str, str]] = LEGACY_MAP  # type: ignore[assignment]
     if filetype in legacy_map:
         target_ext, format_name = legacy_map[filetype]
-        logger.info("Legacy %s format detected: %s. Converting to %s...",
-                    format_name, filepath, target_ext.upper())
-        converted = _auto_convert(filepath, '.' + target_ext)
+        logger.info("Legacy %s format detected: %s. Converting to %s...", format_name, filepath, target_ext.upper())
+        converted = _auto_convert(filepath, "." + target_ext)
         if converted:
             actual_filepath = converted
             actual_filetype = target_ext
             logger.info("Successfully converted %s -> %s", filepath, actual_filepath)
         else:
-            logger.warning("Cannot parse legacy %s file: %s. Install LibreOffice for auto-conversion.",
-                           format_name, filepath)
-            return {"extract_type": "text",
-                    "text": "[Unsupported legacy format: {}]\n[File: {}]\nConsider converting to {} manually.".format(
-                        format_name, os.path.basename(filepath), target_ext.upper()),
-                    "metadata": {"mime": "application/legacy-office", "note": "Legacy format"}}
+            logger.warning(
+                "Cannot parse legacy %s file: %s. Install LibreOffice for auto-conversion.", format_name, filepath
+            )
+            return {
+                "extract_type": "text",
+                "text": "[Unsupported legacy format: {}]\n[File: {}]\nConsider converting to {} manually.".format(
+                    format_name, os.path.basename(filepath), target_ext.upper()
+                ),
+                "metadata": {"mime": "application/legacy-office", "note": "Legacy format"},
+            }
 
     # Handle WPS formats (.wps, .et, .dps)
     wps_map: Dict[str, Tuple[str, str]] = WPS_MAP  # type: ignore[assignment]
     if filetype in wps_map:
         target_ext, format_name = wps_map[filetype]
-        logger.info("%s format detected: %s. Converting to %s...",
-                    format_name, filepath, target_ext.upper())
-        converted = _auto_convert(filepath, '.' + target_ext)
+        logger.info("%s format detected: %s. Converting to %s...", format_name, filepath, target_ext.upper())
+        converted = _auto_convert(filepath, "." + target_ext)
         if converted:
             actual_filepath = converted
             actual_filetype = target_ext
             logger.info("Successfully converted %s -> %s", filepath, actual_filepath)
         else:
-            logger.warning("Cannot parse %s file: %s. Install LibreOffice or WPS Office.",
-                           format_name, filepath)
-            return {"extract_type": "text",
-                    "text": "[Unsupported format: {}]\n[File: {}]\nInstall LibreOffice or WPS Office.".format(
-                        format_name, os.path.basename(filepath)),
-                    "metadata": {"mime": "application/wps-office", "note": "WPS format"}}
+            logger.warning("Cannot parse %s file: %s. Install LibreOffice or WPS Office.", format_name, filepath)
+            return {
+                "extract_type": "text",
+                "text": "[Unsupported format: {}]\n[File: {}]\nInstall LibreOffice or WPS Office.".format(
+                    format_name, os.path.basename(filepath)
+                ),
+                "metadata": {"mime": "application/wps-office", "note": "WPS format"},
+            }
 
     # Parse the (possibly converted) modern file
     try:
         if actual_filetype == "docx":
-            return _parse_docx(actual_filepath, include_tables, include_headers_footers,
-                               include_footnotes, annotate_styles)
+            return _parse_docx(
+                actual_filepath, include_tables, include_headers_footers, include_footnotes, annotate_styles
+            )
         elif actual_filetype == "pptx":
             return _parse_pptx(actual_filepath, extract_ppt_notes)
         elif actual_filetype == "xlsx":
             return _parse_xlsx(actual_filepath, max_rows_xlsx)
         return None
     except Exception as e:
-        logger.exception("Failed to parse office file %s (type=%s): %s",
-                         actual_filepath, actual_filetype, e)
+        logger.exception("Failed to parse office file %s (type=%s): %s", actual_filepath, actual_filetype, e)
         return None
     finally:
         # Clean up temp conversion directory if a conversion was performed
@@ -320,6 +338,7 @@ def parse_office(
 
 
 # ── Style annotation helper ──
+
 
 def _get_style_label(paragraph: Any) -> str:
     """Extract a human-readable style label from a python-docx Paragraph.
@@ -343,8 +362,11 @@ def _get_style_label(paragraph: Any) -> str:
             name = style.name
             # Check for heading: either name starts with 'Heading'/'heading',
             # or the style is a built-in heading style.
-            if name.startswith('Heading') or name.startswith('heading') or \
-               (hasattr(style, 'builtin') and style.builtin and 'heading' in name.lower()):
+            if (
+                name.startswith("Heading")
+                or name.startswith("heading")
+                or (hasattr(style, "builtin") and style.builtin and "heading" in name.lower())
+            ):
                 return "[{}]".format(name)
     except Exception:
         pass
@@ -352,6 +374,7 @@ def _get_style_label(paragraph: Any) -> str:
 
 
 # ── Paragraph normalization ──
+
 
 def _normalize_paragraphs(parts: List[str]) -> str:
     """Collapse excessive blank lines while preserving paragraph structure.
@@ -393,6 +416,7 @@ def _normalize_paragraphs(parts: List[str]) -> str:
 
 # ── DOCX parser ──
 
+
 def _parse_docx(
     filepath: str,
     include_tables: bool = False,
@@ -413,6 +437,7 @@ def _parse_docx(
         Dict with keys {extract_type, text, metadata}.
     """
     from docx import Document
+
     doc = Document(filepath)
 
     text_parts: List[str] = []
@@ -470,12 +495,13 @@ def _parse_docx(
     if include_footnotes:
         try:
             from docx.oxml.ns import qn
+
             for rel in doc.part.rels.values():
                 if "footnotes" in rel.reltype:
                     fn_part = rel.target_part
                     fn_texts = []
-                    for fn in fn_part._element.findall(qn('w:footnote')):
-                        txt = ''.join(t.text or '' for t in fn.iter(qn('w:t')))
+                    for fn in fn_part._element.findall(qn("w:footnote")):
+                        txt = "".join(t.text or "" for t in fn.iter(qn("w:t")))
                         if txt.strip():
                             fn_texts.append(txt.strip())
                     if fn_texts:
@@ -487,12 +513,19 @@ def _parse_docx(
             logger.debug("Could not extract footnotes: %s", e)
 
     normalized = _normalize_paragraphs(text_parts)
-    return {"extract_type": "text", "text": normalized,
-            "metadata": {"mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        "format": "docx", "annotated_styles": annotate_styles}}
+    return {
+        "extract_type": "text",
+        "text": normalized,
+        "metadata": {
+            "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "format": "docx",
+            "annotated_styles": annotate_styles,
+        },
+    }
 
 
 # ── PPTX parser ──
+
 
 def _parse_pptx(filepath: str, extract_notes: bool = False) -> Dict[str, Any]:
     """Parse a .pptx file, extracting slide text and optional speaker notes.
@@ -505,6 +538,7 @@ def _parse_pptx(filepath: str, extract_notes: bool = False) -> Dict[str, Any]:
         Dict with keys {extract_type, text, metadata}.
     """
     from pptx import Presentation
+
     prs = Presentation(filepath)
     text_parts: List[str] = []
     for sidx, slide in enumerate(prs.slides, 1):
@@ -530,12 +564,18 @@ def _parse_pptx(filepath: str, extract_notes: bool = False) -> Dict[str, Any]:
                     text_parts.append(nt)
         if not has_content:
             text_parts.append("[Slide content empty]")
-    return {"extract_type": "text", "text": _normalize_paragraphs(text_parts),
-            "metadata": {"mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                        "format": "pptx"}}
+    return {
+        "extract_type": "text",
+        "text": _normalize_paragraphs(text_parts),
+        "metadata": {
+            "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "format": "pptx",
+        },
+    }
 
 
 # ── XLSX parser ──
+
 
 def _parse_xlsx(filepath: str, max_rows: int = 10000) -> Dict[str, Any]:
     """Parse a .xlsx file with row limit per worksheet.
@@ -548,6 +588,7 @@ def _parse_xlsx(filepath: str, max_rows: int = 10000) -> Dict[str, Any]:
         Dict with keys {extract_type, text, metadata}.
     """
     import openpyxl
+
     wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
     text_parts: List[str] = []
     for sheet_name in wb.sheetnames:
@@ -568,6 +609,8 @@ def _parse_xlsx(filepath: str, max_rows: int = 10000) -> Dict[str, Any]:
                 text_parts.append(rt)
     text = _normalize_paragraphs(text_parts)
     wb.close()
-    return {"extract_type": "text", "text": text,
-            "metadata": {"mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        "format": "xlsx"}}
+    return {
+        "extract_type": "text",
+        "text": text,
+        "metadata": {"mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "format": "xlsx"},
+    }

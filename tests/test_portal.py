@@ -1,6 +1,7 @@
 """
 Tests for the portal generator module.
 """
+
 import os
 import tempfile
 
@@ -34,7 +35,7 @@ def test_extract_keywords():
     assert len(keywords) > 0
     # Should not contain stop words
     for kw in keywords:
-        assert kw not in ('的', '了', '在', '是', 'the', 'and', 'for')
+        assert kw not in ("的", "了", "在", "是", "the", "and", "for")
 
 
 def test_extract_keywords_stop_words():
@@ -42,7 +43,7 @@ def test_extract_keywords_stop_words():
     text = "这是一个测试文件，其中的内容主要是用于测试功能。"
     keywords = extract_keywords(text, max_words=5)
     for kw in keywords:
-        assert kw not in ('的', '了', '是', '一', '一个', '在')
+        assert kw not in ("的", "了", "是", "一", "一个", "在")
 
 
 def test_generate_portal_empty_folder():
@@ -70,7 +71,7 @@ def test_generate_portal_with_text_file():
         os.makedirs(source_dir)
 
         test_file = os.path.join(source_dir, "test_doc.txt")
-        with open(test_file, 'w', encoding='utf-8') as f:
+        with open(test_file, "w", encoding="utf-8") as f:
             f.write("This is a test document for portal generation.")
 
         result = generate_portal(
@@ -99,11 +100,11 @@ def test_generate_portal_output_dir_exists():
         os.makedirs(output_dir)
 
         dummy = os.path.join(output_dir, "dummy.txt")
-        with open(dummy, 'w') as f:
+        with open(dummy, "w") as f:
             f.write("dummy")
 
         test_file = os.path.join(source_dir, "test.txt")
-        with open(test_file, 'w', encoding='utf-8') as f:
+        with open(test_file, "w", encoding="utf-8") as f:
             f.write("Test content")
 
         result = generate_portal(
@@ -124,7 +125,7 @@ def test_generate_portal_doc_sorting():
 
         files = ["b_file.txt", "a_file.txt", "c_file.txt"]
         for fname in files:
-            with open(os.path.join(source_dir, fname), 'w', encoding='utf-8') as f:
+            with open(os.path.join(source_dir, fname), "w", encoding="utf-8") as f:
                 f.write(f"Content of {fname}")
 
         result = generate_portal(
@@ -141,6 +142,7 @@ def test_generate_portal_doc_sorting():
 #  Always-expanded content tests
 # ──────────────────────────────────────────────
 
+
 def test_doc_content_always_visible():
     """
     Verify that .doc-content blocks are always visible (no display:none)
@@ -152,7 +154,7 @@ def test_doc_content_always_visible():
         os.makedirs(source_dir)
 
         test_file = os.path.join(source_dir, "sample.txt")
-        with open(test_file, 'w', encoding='utf-8') as f:
+        with open(test_file, "w", encoding="utf-8") as f:
             f.write("This is visible content for AI reading.")
 
         result = generate_portal(
@@ -165,12 +167,13 @@ def test_doc_content_always_visible():
         with open(result["index_file"], encoding="utf-8") as f:
             content = f.read()
 
-        assert 'style="display:none"' not in content, \
+        assert 'style="display:none"' not in content, (
             "doc-content should not have display:none (content should always be visible)"
-        assert "This is visible content for AI reading." in content, \
+        )
+        assert "This is visible content for AI reading." in content, (
             "File content should be present and visible in the DOM"
-        assert 'aria-hidden="true"' not in content, \
-            "sr-only block should not exist in Portal mode"
+        )
+        assert 'aria-hidden="true"' not in content, "sr-only block should not exist in Portal mode"
 
 
 def test_each_file_block_has_copy_button():
@@ -183,7 +186,7 @@ def test_each_file_block_has_copy_button():
         os.makedirs(source_dir)
 
         for i, fname in enumerate(["alpha.txt", "beta.txt", "gamma.txt"]):
-            with open(os.path.join(source_dir, fname), 'w', encoding='utf-8') as f:
+            with open(os.path.join(source_dir, fname), "w", encoding="utf-8") as f:
                 f.write(f"Content of {fname}.")
 
         result = generate_portal(
@@ -197,19 +200,16 @@ def test_each_file_block_has_copy_button():
             content = f.read()
 
         copy_btn_count = content.count('class="copy-file-btn"')
-        assert copy_btn_count == 3, \
-            f"Expected 3 copy-file-btn elements, found {copy_btn_count}"
+        assert copy_btn_count == 3, f"Expected 3 copy-file-btn elements, found {copy_btn_count}"
 
         import re
+
         indices = re.findall(r'data-file-index="(\d+)"', content)
-        assert len(indices) == 3, \
-            f"Expected 3 data-file-index attributes, found {len(indices)}"
-        assert set(indices) == {'0', '1', '2'}, \
-            f"Expected data-file-indices 0,1,2, got {set(indices)}"
+        assert len(indices) == 3, f"Expected 3 data-file-index attributes, found {len(indices)}"
+        assert set(indices) == {"0", "1", "2"}, f"Expected data-file-indices 0,1,2, got {set(indices)}"
 
         for i in range(3):
-            assert f'id="file-content-{i}"' in content, \
-                f"Expected pre element with id='file-content-{i}'"
+            assert f'id="file-content-{i}"' in content, f"Expected pre element with id='file-content-{i}'"
 
 
 def test_copy_button_calls_copy_function():
@@ -222,7 +222,7 @@ def test_copy_button_calls_copy_function():
         os.makedirs(source_dir)
 
         test_file = os.path.join(source_dir, "test.txt")
-        with open(test_file, 'w', encoding='utf-8') as f:
+        with open(test_file, "w", encoding="utf-8") as f:
             f.write("Test content for copy.")
 
         result = generate_portal(
@@ -235,10 +235,8 @@ def test_copy_button_calls_copy_function():
         with open(result["index_file"], encoding="utf-8") as f:
             content = f.read()
 
-        assert 'onclick="copyFileContent(this)"' in content, \
-            "Copy button should call copyFileContent(this) on click"
-        assert "function copyFileContent" in content, \
-            "copyFileContent JavaScript function should be defined"
+        assert 'onclick="copyFileContent(this)"' in content, "Copy button should call copyFileContent(this) on click"
+        assert "function copyFileContent" in content, "copyFileContent JavaScript function should be defined"
 
 
 def test_no_sr_only_block_in_portal():
@@ -252,7 +250,7 @@ def test_no_sr_only_block_in_portal():
         os.makedirs(source_dir)
 
         test_file = os.path.join(source_dir, "test.txt")
-        with open(test_file, 'w', encoding='utf-8') as f:
+        with open(test_file, "w", encoding="utf-8") as f:
             f.write("Content for Portal mode.")
 
         result = generate_portal(
@@ -265,12 +263,9 @@ def test_no_sr_only_block_in_portal():
         with open(result["index_file"], encoding="utf-8") as f:
             content = f.read()
 
-        assert "KNOWLEDGE PORTAL" not in content, \
-            "Old sr-only KNOWLEDGE PORTAL header should not exist"
-        assert "AI-READABLE TEXT EXTRACT" not in content, \
-            "Old AI-READABLE TEXT EXTRACT label should not exist"
-        assert "END OF AI-READABLE TEXT EXTRACT" not in content, \
-            "Old sr-only end marker should not exist"
+        assert "KNOWLEDGE PORTAL" not in content, "Old sr-only KNOWLEDGE PORTAL header should not exist"
+        assert "AI-READABLE TEXT EXTRACT" not in content, "Old AI-READABLE TEXT EXTRACT label should not exist"
+        assert "END OF AI-READABLE TEXT EXTRACT" not in content, "Old sr-only end marker should not exist"
 
 
 def test_portal_uses_minimal_font_and_compact_layout():
@@ -284,7 +279,7 @@ def test_portal_uses_minimal_font_and_compact_layout():
         os.makedirs(source_dir)
 
         test_file = os.path.join(source_dir, "test.txt")
-        with open(test_file, 'w', encoding='utf-8') as f:
+        with open(test_file, "w", encoding="utf-8") as f:
             f.write("Test content.")
 
         result = generate_portal(
@@ -297,21 +292,23 @@ def test_portal_uses_minimal_font_and_compact_layout():
         with open(result["index_file"], encoding="utf-8") as f:
             content = f.read()
 
-        assert "font-size: 3px" in content or "font-size:3px" in content, \
+        assert "font-size: 3px" in content or "font-size:3px" in content, (
             "CSS should have font-size: 3px for .doc-content pre"
-        assert "white-space: pre-wrap" in content or "white-space:pre-wrap" in content, \
+        )
+        assert "white-space: pre-wrap" in content or "white-space:pre-wrap" in content, (
             "CSS should have white-space: pre-wrap for wrapping"
-        assert "word-break: break-all" in content or "word-break:break-all" in content, \
+        )
+        assert "word-break: break-all" in content or "word-break:break-all" in content, (
             "CSS should have word-break: break-all"
-        assert "overflow-x: hidden" in content or "overflow-x:hidden" in content, \
-            "CSS should have overflow-x: hidden"
-        assert "line-height: 1.2" in content or "line-height:1.2" in content, \
-            "CSS should have line-height: 1.2"
+        )
+        assert "overflow-x: hidden" in content or "overflow-x:hidden" in content, "CSS should have overflow-x: hidden"
+        assert "line-height: 1.2" in content or "line-height:1.2" in content, "CSS should have line-height: 1.2"
 
 
 # ──────────────────────────────────────────────
 #  Skipped file behavior tests
 # ──────────────────────────────────────────────
+
 
 def _create_folder_with_unsupported_file(tmpdir: str) -> str:
     """Create a folder with a supported .txt and an unsupported file type."""
@@ -320,7 +317,7 @@ def _create_folder_with_unsupported_file(tmpdir: str) -> str:
     with open(os.path.join(folder, "readable.txt"), "w", encoding="utf-8") as f:
         f.write("Supported content for portal test.")
     with open(os.path.join(folder, "notes.bin"), "wb") as f:
-        f.write(b'\x00\x01\x02\x03\xff\xfe\xfd\xfc' * 32)
+        f.write(b"\x00\x01\x02\x03\xff\xfe\xfd\xfc" * 32)
     return folder
 
 
@@ -348,13 +345,14 @@ def test_skipped_files_do_not_generate_pages():
             content = f.read()
 
         import re
+
         file_content_ids = re.findall(r'id="file-content-\d+"', content)
-        assert 'notes.bin' in content, "notes.bin should appear in file tree"
-        assert len(file_content_ids) == 1, \
+        assert "notes.bin" in content, "notes.bin should appear in file tree"
+        assert len(file_content_ids) == 1, (
             f"Expected exactly 1 file-content block (for readable.txt), found {len(file_content_ids)}"
+        )
         assert 'id="file-content-0"' in content, "readable.txt should have file-content-0"
-        assert 'id="file-content-1"' not in content, \
-            "notes.bin should not have a file-content block"
+        assert 'id="file-content-1"' not in content, "notes.bin should not have a file-content block"
 
         assert result["skipped"] >= 1, f"Expected at least 1 skipped, got {result['skipped']}"
         assert result["doc_count"] == 1, f"Expected 1 parsed doc, got {result['doc_count']}"
@@ -379,8 +377,9 @@ def test_skipped_files_appear_in_file_tree():
             content = f.read()
 
         assert "notes.bin" in content, "Skipped file 'notes.bin' should appear in file tree"
-        assert "skipped" in content.lower() or "\u23ed\ufe0f" in content or "tree-file.skipped" in content, \
+        assert "skipped" in content.lower() or "\u23ed\ufe0f" in content or "tree-file.skipped" in content, (
             "Skipped file styling indicator expected in page"
+        )
 
 
 def test_skipped_files_excluded_from_file_tree_when_disabled():
@@ -399,8 +398,7 @@ def test_skipped_files_excluded_from_file_tree_when_disabled():
         if result["index_file"]:
             with open(result["index_file"], encoding="utf-8") as f:
                 content = f.read()
-            assert "notes.bin" not in content, \
-                "Skipped file should not appear in index when include_skipped=False"
+            assert "notes.bin" not in content, "Skipped file should not appear in index when include_skipped=False"
 
 
 def test_skipped_page_template_unused_by_portal():
@@ -409,6 +407,7 @@ def test_skipped_page_template_unused_by_portal():
     but the portal generator doesn't use it for skipped files.
     """
     from src.generator.templates import wrap_skipped_html
+
     assert callable(wrap_skipped_html), "wrap_skipped_html should be importable and callable"
 
     sample_html = wrap_skipped_html(
@@ -425,6 +424,7 @@ def test_skipped_page_template_unused_by_portal():
 #  generate_portal_split tests
 # ──────────────────────────────────────────────
 
+
 def test_generate_portal_split_creates_docs_dir():
     """
     Verify that generate_portal_split creates a docs/ subdirectory
@@ -437,7 +437,7 @@ def test_generate_portal_split_creates_docs_dir():
 
         files = ["doc_a.txt", "doc_b.txt", "doc_c.txt"]
         for fname in files:
-            with open(os.path.join(source_dir, fname), 'w', encoding='utf-8') as f:
+            with open(os.path.join(source_dir, fname), "w", encoding="utf-8") as f:
                 f.write(f"This is content of {fname}.")
 
         result = generate_portal_split(
@@ -447,14 +447,12 @@ def test_generate_portal_split_creates_docs_dir():
         )
 
         docs_dir = os.path.join(output_dir, "docs")
-        assert os.path.isdir(docs_dir), \
-            "docs/ directory should be created in split mode"
+        assert os.path.isdir(docs_dir), "docs/ directory should be created in split mode"
 
         for fname in files:
             subpage_name = fname + ".html"
             subpage_path = os.path.join(docs_dir, subpage_name)
-            assert os.path.isfile(subpage_path), \
-                f"Subpage not found for {fname}: expected {subpage_path}"
+            assert os.path.isfile(subpage_path), f"Subpage not found for {fname}: expected {subpage_path}"
 
         assert result["doc_count"] == 3, f"Expected 3 docs, got {result['doc_count']}"
         assert result["index_file"] is not None
@@ -472,7 +470,7 @@ def test_generate_portal_split_index_has_no_file_contents():
         os.makedirs(source_dir)
 
         test_file = os.path.join(source_dir, "sample.txt")
-        with open(test_file, 'w', encoding='utf-8') as f:
+        with open(test_file, "w", encoding="utf-8") as f:
             f.write("This content should only appear in the subpage, not in index.")
 
         result = generate_portal_split(
@@ -486,16 +484,13 @@ def test_generate_portal_split_index_has_no_file_contents():
             index_content = f.read()
 
         import re
-        file_content_ids = re.findall(r'id="file-content-\d+"', index_content)
-        assert len(file_content_ids) == 0, \
-            "Index page should not contain file-content-* elements in split mode"
 
-        assert 'file-blocks-section' in index_content, \
-            "file-blocks-section div should exist"
-        assert 'file-blocks-header' in index_content, \
-            "file-blocks-header should exist"
-        assert 'split-mode-info' in index_content, \
-            "split-mode-info section should be present in split mode"
+        file_content_ids = re.findall(r'id="file-content-\d+"', index_content)
+        assert len(file_content_ids) == 0, "Index page should not contain file-content-* elements in split mode"
+
+        assert "file-blocks-section" in index_content, "file-blocks-section div should exist"
+        assert "file-blocks-header" in index_content, "file-blocks-header should exist"
+        assert "split-mode-info" in index_content, "split-mode-info section should be present in split mode"
 
 
 def test_generate_portal_split_subpages_have_correct_content():
@@ -516,7 +511,7 @@ def test_generate_portal_split_subpages_have_correct_content():
         for rel_path, content in files_content.items():
             full_path = os.path.join(source_dir, rel_path)
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            with open(full_path, 'w', encoding='utf-8') as f:
+            with open(full_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
         result = generate_portal_split(
@@ -530,31 +525,28 @@ def test_generate_portal_split_subpages_have_correct_content():
         assert os.path.isdir(docs_dir)
 
         for rel_path, expected_content in files_content.items():
-            subpage_name = rel_path.replace('\\', '/').replace('/', '_') + ".html"
+            subpage_name = rel_path.replace("\\", "/").replace("/", "_") + ".html"
             subpage_path = os.path.join(docs_dir, subpage_name)
-            assert os.path.isfile(subpage_path), \
-                f"Subpage not found for {rel_path}: expected {subpage_path}"
+            assert os.path.isfile(subpage_path), f"Subpage not found for {rel_path}: expected {subpage_path}"
 
             with open(subpage_path, encoding="utf-8") as f:
                 subpage_content = f.read()
 
             if rel_path == "readme.txt":
-                assert "This is the README file with important information." in subpage_content, \
+                assert "This is the README file with important information." in subpage_content, (
                     "Subpage should contain original file content"
+                )
             elif rel_path == "src/main.py":
-                assert "def hello():" in subpage_content, \
-                    "Subpage should contain Python function definition"
-                assert "Hello, World!" in subpage_content, \
-                    "Subpage should contain string from Python code"
+                assert "def hello():" in subpage_content, "Subpage should contain Python function definition"
+                assert "Hello, World!" in subpage_content, "Subpage should contain string from Python code"
             elif rel_path == "config/settings.json":
-                assert "version" in subpage_content, \
-                    "Subpage should contain JSON content"
+                assert "version" in subpage_content, "Subpage should contain JSON content"
 
-            assert 'index.html' in subpage_content or '../index.html' in subpage_content, \
+            assert "index.html" in subpage_content or "../index.html" in subpage_content, (
                 f"Subpage for {rel_path} should contain back-link to index"
+            )
 
-            assert os.path.basename(rel_path) in subpage_content, \
-                f"Subpage for {rel_path} should display the filename"
+            assert os.path.basename(rel_path) in subpage_content, f"Subpage for {rel_path} should display the filename"
 
 
 def test_generate_portal_split_search_count_in_tip():
@@ -569,7 +561,7 @@ def test_generate_portal_split_search_count_in_tip():
 
         files = ["alpha.txt", "beta.txt", "gamma.txt"]
         for fname in files:
-            with open(os.path.join(source_dir, fname), 'w', encoding='utf-8') as f:
+            with open(os.path.join(source_dir, fname), "w", encoding="utf-8") as f:
                 f.write(f"Content of {fname} with unique data.")
 
         result = generate_portal_split(
@@ -582,11 +574,13 @@ def test_generate_portal_split_search_count_in_tip():
         with open(result["index_file"], encoding="utf-8") as f:
             content = f.read()
 
-        assert '.tip' in content or 'class="tip"' in content, \
+        assert ".tip" in content or 'class="tip"' in content, (
             "The .tip element should exist for displaying search results count"
+        )
 
-        assert 'matching files' in content or '\u5339\u914d\u6587\u4ef6' in content or 'matching file' in content, \
+        assert "matching files" in content or "\u5339\u914d\u6587\u4ef6" in content or "matching file" in content, (
             "JS should contain 'matching files' string for count display"
+        )
 
 
 def test_generate_portal_split_empty_folder():
@@ -612,8 +606,7 @@ def test_generate_portal_split_empty_folder():
         docs_dir = os.path.join(output_dir, "docs")
         if os.path.isdir(docs_dir):
             subpage_files = os.listdir(docs_dir)
-            assert len(subpage_files) == 0, \
-                f"No subpages should exist for empty folder, found: {subpage_files}"
+            assert len(subpage_files) == 0, f"No subpages should exist for empty folder, found: {subpage_files}"
 
 
 def test_generate_portal_split_output_dir_exists():
@@ -628,7 +621,7 @@ def test_generate_portal_split_output_dir_exists():
         os.makedirs(output_dir)
 
         test_file = os.path.join(source_dir, "test.txt")
-        with open(test_file, 'w', encoding='utf-8') as f:
+        with open(test_file, "w", encoding="utf-8") as f:
             f.write("Test content for split mode.")
 
         result = generate_portal_split(
@@ -644,8 +637,7 @@ def test_generate_portal_split_output_dir_exists():
         docs_dir = os.path.join(output_dir, "docs")
         assert os.path.isdir(docs_dir)
         subpage_path = os.path.join(docs_dir, "test.txt.html")
-        assert os.path.isfile(subpage_path), \
-            "Subpage should be created even when output dir already exists"
+        assert os.path.isfile(subpage_path), "Subpage should be created even when output dir already exists"
 
 
 def test_generate_portal_split_tree_links_to_subpages():
@@ -660,7 +652,7 @@ def test_generate_portal_split_tree_links_to_subpages():
 
         files = ["note.txt", "script.py"]
         for fname in files:
-            with open(os.path.join(source_dir, fname), 'w', encoding='utf-8') as f:
+            with open(os.path.join(source_dir, fname), "w", encoding="utf-8") as f:
                 f.write(f"Content of {fname}.")
 
         result = generate_portal_split(
@@ -673,11 +665,11 @@ def test_generate_portal_split_tree_links_to_subpages():
         with open(result["index_file"], encoding="utf-8") as f:
             content = f.read()
 
-        assert 'href="docs/' in content, \
-            "File tree links should point to docs/ subpages in split mode"
+        assert 'href="docs/' in content, "File tree links should point to docs/ subpages in split mode"
 
-        assert 'onclick="jumpToFile' not in content, \
+        assert 'onclick="jumpToFile' not in content, (
             "Split mode tree should not use jumpToFile (single-page mode function)"
+        )
 
 
 def test_generate_portal_split_skipped_behavior():
@@ -700,20 +692,15 @@ def test_generate_portal_split_skipped_behavior():
         assert os.path.isdir(docs_dir), "docs/ directory should exist"
 
         readable_subpage = os.path.join(docs_dir, "readable.txt.html")
-        assert os.path.isfile(readable_subpage), \
-            "Parsed file should have a subpage"
+        assert os.path.isfile(readable_subpage), "Parsed file should have a subpage"
 
         notes_subpage = os.path.join(docs_dir, "notes.bin.html")
-        assert not os.path.isfile(notes_subpage), \
-            "Skipped file should not have a subpage"
+        assert not os.path.isfile(notes_subpage), "Skipped file should not have a subpage"
 
         assert result["index_file"] is not None
         with open(result["index_file"], encoding="utf-8") as f:
             content = f.read()
-        assert "notes.bin" in content, \
-            "Skipped file should appear in file tree"
+        assert "notes.bin" in content, "Skipped file should appear in file tree"
 
-        assert result["doc_count"] == 1, \
-            f"Expected 1 parsed doc, got {result['doc_count']}"
-        assert result["skipped"] >= 1, \
-            f"Expected at least 1 skipped, got {result['skipped']}"
+        assert result["doc_count"] == 1, f"Expected 1 parsed doc, got {result['doc_count']}"
+        assert result["skipped"] >= 1, f"Expected at least 1 skipped, got {result['skipped']}"

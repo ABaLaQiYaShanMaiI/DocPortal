@@ -29,12 +29,12 @@ from src.parser.dispatcher import parse_file
 from src.utils import human_readable_size
 
 __all__ = [
-    'generate_portal',
-    'generate_portal_split',
-    'collect_files_info',
-    'is_file_supported',
-    'write_chunks',
-    'DEFAULT_CHUNK_SIZE',
-    'parse_file',
-    'human_readable_size',
+    "generate_portal",
+    "generate_portal_split",
+    "collect_files_info",
+    "is_file_supported",
+    "write_chunks",
+    "DEFAULT_CHUNK_SIZE",
+    "parse_file",
+    "human_readable_size",
 ]

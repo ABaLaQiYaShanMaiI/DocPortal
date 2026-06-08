@@ -29,6 +29,7 @@ _CHARDET_CONFIDENCE_THRESHOLD = 0.5
 # Try to use chardet for more accurate encoding detection
 try:
     import chardet
+
     HAS_CHARDET = True
 except ImportError:
     HAS_CHARDET = False

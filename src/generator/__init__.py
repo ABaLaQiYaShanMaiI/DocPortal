@@ -7,4 +7,4 @@ Exports:
 
 from src.generator.portal import generate_portal, generate_portal_split
 
-__all__ = ['generate_portal', 'generate_portal_split']
+__all__ = ["generate_portal", "generate_portal_split"]

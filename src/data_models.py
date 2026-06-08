@@ -6,6 +6,7 @@ between modules (scanner -> parser -> generator -> templates).
 
 These replace ad-hoc dict[str, Any] usage throughout the codebase.
 """
+
 from __future__ import annotations
 
 from typing import TypedDict, List, Optional
@@ -19,6 +20,7 @@ class ParseResult(TypedDict):
     - 'extract_type' is always 'text' for this project (we extract text from all formats).
     - 'metadata' carries format-specific info (mime, encoding, format).
     """
+
     extract_type: str
     text: str
     metadata: dict
@@ -29,6 +31,7 @@ class FileEntry(TypedDict):
 
     Used in: chunker door_init__, portal door_init__, scanner output builders.
     """
+
     rel_path: str
     text: str
     size: int
@@ -41,6 +44,7 @@ class PortalDocMeta(TypedDict):
     This is the "metadata view" — search index, card display, file tree labels.
     Does NOT contain full text content.
     """
+
     title: str
     file: str
     size: int
@@ -56,6 +60,7 @@ class PortalDocText(TypedDict):
 
     This is the "content view" — rendered in file content blocks, subpages, etc.
     """
+
     title: str
     text: str
     size: int
@@ -70,6 +75,7 @@ class PortalBuildResult(TypedDict):
     This is the shared output of `collect_portal_documents()`, consumed by both
     generate_portal() and generate_portal_split() for their rendering phases.
     """
+
     docs_meta: List[PortalDocMeta]
     docs_texts: List[PortalDocText]
     parsed_count: int
@@ -86,17 +92,19 @@ class ScannedFile(TypedDict):
     Replaces the scattered ad-hoc dicts that were built by walk_files,
     collect_files_info, and inline file processing loops.
     """
+
     rel_path: str
     full_path: str
     size: int
     size_hr: str
     status: str  # FileScanStatus value
     reason: str  # Human-readable reason (empty if PARSED)
-    text: str     # Empty if not parsed
+    text: str  # Empty if not parsed
 
 
 class ChunkerResult(TypedDict):
     """Output from the write_chunks() function."""
+
     chunks_count: int
     total_chars: int
     total_files: int
@@ -106,6 +114,7 @@ class ChunkerResult(TypedDict):
 
 class PortalResult(TypedDict):
     """Output from generate_portal() or generate_portal_split()."""
+
     doc_count: int
     total_chars: int
     skipped: int
