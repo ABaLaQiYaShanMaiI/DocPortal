@@ -7,8 +7,11 @@ python-pptx>=1.0.2
 openpyxl>=3.1.5
 chardet>=5.0
 
-# Optional GUI dependency (install separately if using GUI)
+# ── Optional: Drag-and-drop support for GUI ──
+# Uncomment the line below to enable folder drag-and-drop in the GUI.
+# If installation fails (needs a C compiler on Windows), the GUI will still
+# work fine — just use the "Browse" button or Ctrl+V paste to load folders.
 # tkinterdnd2>=0.3.0
 
-# Dev dependencies
+# ── Dev dependencies ──
 # pytest>=7.0.0

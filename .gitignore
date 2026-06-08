@@ -78,3 +78,6 @@ test_skip_result.txt
 
 # GUI settings file (created at runtime)
 .folderknowledge_settings.json
+
+# Startup dependency marker (skip pip on second launch)
+deps_ok.marker

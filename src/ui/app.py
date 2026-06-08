@@ -11,16 +11,44 @@ import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-from src.scanner import collect_files_info, build_text_from_files, build_markdown_from_files, is_file_supported
+# ── Fast startup: only import light modules at load time ──
+from src.scanner import collect_files_info, is_file_supported
 from src.utils import human_readable_size
 from src.ui.i18n import LANG
 from src.ui.server import ServerManager
 
-try:
-    from src.generator.portal import generate_portal_split
-    HAS_PORTAL = True
-except ImportError:
-    HAS_PORTAL = False
+# Lazy imports: heavy modules loaded only when needed
+_build_text_from_files = None
+_build_markdown_from_files = None
+_generate_portal_split = None
+_HAS_PORTAL = None
+
+def _get_portal():
+    """Lazy-load portal generator (imports python-magic, pdfminer, etc)."""
+    global _generate_portal_split, _HAS_PORTAL
+    if _generate_portal_split is None:
+        try:
+            from src.generator.portal import generate_portal_split
+            _generate_portal_split = generate_portal_split
+            _HAS_PORTAL = True
+        except ImportError:
+            _generate_portal_split = None
+            _HAS_PORTAL = False
+    return _generate_portal_split
+
+def _get_build_text():
+    global _build_text_from_files
+    if _build_text_from_files is None:
+        from src.scanner import build_text_from_files
+        _build_text_from_files = build_text_from_files
+    return _build_text_from_files
+
+def _get_build_md():
+    global _build_markdown_from_files
+    if _build_markdown_from_files is None:
+        from src.scanner import build_markdown_from_files
+        _build_markdown_from_files = build_markdown_from_files
+    return _build_markdown_from_files
 
 
 class App:
@@ -165,7 +193,10 @@ class App:
             self.root.drop_target_register(DND_FILES)
             self.root.dnd_bind('<<Drop>>', self._on_drop)
         except Exception:
-            pass
+            # Drag-and-drop unavailable — show visible hint in the drop zone
+            tk.Label(folder_f, text="(Drag & drop unavailable — install tkinterdnd2)",
+                     font=('Segoe UI', 7), bg=self.COLORS['card'],
+                     fg=self.COLORS['warning']).pack(pady=(0, 2))
         folder_f.bind('<Enter>', lambda e: folder_f.configure(bg=self.COLORS['drop_bg_hover']))
         folder_f.bind('<Leave>', lambda e: folder_f.configure(bg=self.COLORS['card']))
         folder_f.bind('<Button-1>', lambda e: self.browse_folder())
@@ -281,8 +312,9 @@ class App:
                                 command=self.on_mode_change, font=('Segoe UI', 10),
                                 bg=self.COLORS['card'], selectcolor=self.COLORS['card'])
             rb.pack(side=tk.LEFT, padx=(8, 0))
-        ps = self.tr('ready') if HAS_PORTAL else self.tr('unavail')
-        pc = self.COLORS['success'] if HAS_PORTAL else self.COLORS['warning']
+        has_p = _get_portal() is not None
+        ps = self.tr('ready') if has_p else self.tr('unavail')
+        pc = self.COLORS['success'] if has_p else self.COLORS['warning']
         tk.Label(mode_f, text=f"({ps})", font=('Segoe UI', 9),
                  bg=self.COLORS['card'], fg=pc).pack(side=tk.LEFT, padx=(6, 0))
 
@@ -741,10 +773,10 @@ class App:
         def task():
             try:
                 if fmt == 'md':
-                    text, parsed, skipped, errors, chars = build_markdown_from_files(
+                    text, parsed, skipped, errors, chars = _get_build_md()(
                         self.current_folder, self.file_list, include_skipped=skip, language=self._lang)
                 else:
-                    text, parsed, skipped, errors, chars = build_text_from_files(
+                    text, parsed, skipped, errors, chars = _get_build_text()(
                         self.current_folder, self.file_list, include_skipped=skip)
                 with open(out, 'w', encoding='utf-8') as f:
                     f.write(text)
@@ -787,7 +819,8 @@ class App:
         self._sim_progress()
 
     def _gen_portal(self, skip):
-        if not HAS_PORTAL:
+        g = _get_portal()
+        if not g:
             return messagebox.showerror("Error", "Portal module unavailable")
         out_dir = self.pout_var.get().strip()
         if not out_dir:
@@ -796,7 +829,7 @@ class App:
 
         def task():
             try:
-                r = generate_portal_split(
+                r = _get_portal()(
                     folder_path=self.current_folder, output_dir=out_dir,
                     include_skipped=skip, language=self._lang)
                 self.server._root = r.get("output_dir", out_dir)

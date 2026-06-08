@@ -14,7 +14,7 @@ Main entry points:
 from src.generator.portal import generate_portal, generate_portal_split
 
 # Core API: Scanning & file info
-from src.gui_scanner import collect_files_info, is_file_supported
+from src.scanner import collect_files_info, is_file_supported
 
 # Core API: Chunked output
 try:
