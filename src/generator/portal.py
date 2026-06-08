@@ -624,7 +624,7 @@ def generate_portal_split(
 
     # Generate per-file subpages
     for doc_data in build_result["docs_texts"]:
-        subpage_html = build_subpage_html(doc_data, build_result["folder_name"], language)
+        subpage_html = build_subpage_html(doc_data, build_result["folder_name"], language)  # type: ignore[arg-type]
         subpage_filename = _path_to_subpage_filename(doc_data["title"])
         subpage_path = os.path.join(docs_dir, subpage_filename)
         with open(subpage_path, 'w', encoding='utf-8') as f:

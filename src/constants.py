@@ -13,7 +13,6 @@ Design notes:
 from __future__ import annotations
 
 from enum import Enum
-from typing import Dict, Tuple
 
 # ── File Scan Status Enum ──
 # Unified file disposition model. Every file that passes through the scanner

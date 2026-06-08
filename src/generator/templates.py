@@ -232,7 +232,7 @@ def _path_to_subpage_filename(rel_path: str) -> str:
 
 
 def build_subpage_html(
-    doc: dict,
+    doc: dict,  # PortalDocText — kept as dict for mypy compatibility
     folder_name: str,
     language: str = "en",
 ) -> str:

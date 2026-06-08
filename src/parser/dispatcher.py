@@ -264,7 +264,7 @@ def parse_file(filepath: str, **kwargs: Any) -> Optional[Dict[str, Any]]:
         if mime.startswith(tuple(_TEXT_MIME_PREFIXES)):
             return parse_text(filepath, mime)
         elif mime == "application/pdf":
-            return parse_pdf(filepath)
+            return parse_pdf(filepath)  # type: ignore[no-any-return]
         elif mime in _OFFICE_MIME_SET:
             filetype = _get_office_filetype_from_mime(mime)
             if filetype:

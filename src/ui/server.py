@@ -23,7 +23,7 @@ class ServerManager:
 
     @property
     def port(self) -> int:
-        return self._port
+        return self._port  # type: ignore[no-any-return]
 
     @port.setter
     def port(self, value: int):
