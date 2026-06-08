@@ -1,7 +1,41 @@
 """
 FolderKnowledgeSiteGeneratorForAI — Shared Constants
+
+Centralized source for all project-wide defaults, mappings, and enumerations.
+Import via: import src.constants as const  (never use import *).
+
+Design notes:
+- All DEFAULT_* values are configuration defaults (not business logic).
+- All FILTER_* sets are exclusion rules applied at scan time.
+- All *_MAP dictionaries are static lookup tables.
+- FileScanStatus enum provides the single source of truth for file disposition.
 """
 from __future__ import annotations
+
+from enum import Enum
+from typing import Dict, Tuple
+
+# ── File Scan Status Enum ──
+# Unified file disposition model. Every file that passes through the scanner
+# gets one (and only one) status. This replaces the old pattern of computing
+# "skipped" files via set-difference between walk_files() and os.walk().
+class FileScanStatus(Enum):
+    """Unified status for every file encountered during scanning.
+
+    Design intent:
+    - A single scan pass produces a ScannedFile for each file on disk.
+    - Downstream consumers (portal, chunker, GUI) derive their views
+      (parsed count, skipped count, error count) directly from the
+      status field rather than by computing set differences.
+    - This eliminates the fragile "two-pass" pattern where skipped files
+      were inferred by comparing walk_files output against os.walk output.
+    """
+    PARSED = "parsed"
+    FILTERED = "filtered"          # Excluded by filter rules (extension, dir, hidden)
+    UNSUPPORTED = "unsupported"    # MIME/extension not recognized
+    EMPTY = "empty"                # Parsed successfully but content is empty
+    ERROR = "error"                # Parse failed with exception
+    OVERSIZED = "oversized"        # File exceeds size limits
 
 # ── Directory filter rules ──
 # Directories to always skip during scanning

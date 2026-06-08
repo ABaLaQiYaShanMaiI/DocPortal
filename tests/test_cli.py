@@ -112,8 +112,8 @@ class TestTextExportMode:
             content = f.read()
         # Must NOT be truncated (old behavior would have ~20 chars)
         assert len(content) > 100, f"Expected full content (>100 chars), got {len(content)}"
-        # Must print a warning
-        assert "no effect" in stdout.lower(), f"Expected warning about no effect in: {stdout}"
+        # Warning goes to stderr in new CLI
+        assert "no effect" in stderr.lower(), f"Expected warning about no effect in stderr: {stderr}"
 
     def test_missing_folder(self, tmp_path):
         """Verify error on non-existent folder."""
@@ -221,18 +221,18 @@ class TestPortalMode:
     """Test the portal (single-page) generation mode."""
 
     def test_basic_portal_generation(self, tmp_path):
-        """Generate a portal from sample docs."""
+        """Generate a split-file portal from sample docs (new default mode)."""
         folder = _create_sample_folder(str(tmp_path))
         output_dir = os.path.join(str(tmp_path), "portal_output")
 
         rc, stdout, stderr = _run_generate([
-            folder, "--portal", "-o", output_dir,
+            folder, "--portal-mode", "split", "-o", output_dir,
         ])
 
         assert rc == 0, f"Expected exit code 0, got {rc}. stderr: {stderr}"
         assert os.path.isdir(output_dir), f"Output dir not created: {output_dir}"
         assert os.path.exists(os.path.join(output_dir, "index.html")), "index.html not found"
-        assert "知识门户" in stdout or "Portal" in stdout or "门户" in stdout
+        assert "Split-file portal" in stdout, f"Expected 'Split-file portal' in stdout: {stdout}"
 
         # Verify index.html structure
         index_path = os.path.join(output_dir, "index.html")
@@ -242,16 +242,16 @@ class TestPortalMode:
         assert "sample_docs" in content
 
     def test_portal_page_creation(self, tmp_path):
-        """Verify that portal is single-page: no docs/ dir, all content in index.html."""
+        """Verify single-page portal mode: no docs/ dir, all content in index.html."""
         folder = _create_sample_folder(str(tmp_path))
         output_dir = os.path.join(str(tmp_path), "portal_pages")
 
         rc, stdout, stderr = _run_generate([
-            folder, "--portal", "-o", output_dir,
+            folder, "--portal-mode", "single", "-o", output_dir,
         ])
         assert rc == 0
 
-        # Portal is single-page — no docs/ subdirectory
+        # Single-page portal — no docs/ subdirectory
         docs_dir = os.path.join(output_dir, "docs")
         assert not os.path.isdir(docs_dir), "docs/ subdirectory should NOT exist (single-page portal)"
 

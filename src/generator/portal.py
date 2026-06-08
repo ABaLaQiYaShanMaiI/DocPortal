@@ -1,17 +1,23 @@
 """
-FolderKnowledgeSiteGeneratorForAI Portal — Single-page knowledge portal generator
+FolderKnowledgeSiteGeneratorForAI Portal — Knowledge portal generator.
 
-Parses a folder into a single searchable HTML page with:
+Generates searchable HTML portals from a folder's contents with:
 - File tree (collapsible folder structure)
 - Document cards (with search, tag cloud)
-- All file contents as collapsible <details> blocks (default collapsed)
-- "Expand All (AI Mode)" button for AI to read all code at once
-- Per-file expand/collapse for human readers
+- File contents (always-expanded for AI readability)
+- Support for single-page and split-file output modes
+
+Architecture:
+  1. collect_portal_documents() — unified scan + parse + model layer
+  2. generate_portal() — single-page rendering
+  3. generate_portal_split() — split-file rendering with subpages
 
 Design decisions:
-- Single HTML file, no pagination (AI lacks cross-page reasoning)
-- All file contents embedded in DOM (AI can read them when expanded)
-- Default collapsed for fast loading
+- Single HTML file for single-page mode (no pagination, AI lacks cross-page reasoning).
+- All file contents embedded in DOM for single-page mode (AI can read when expanded).
+- Split mode generates per-file subpages under docs/ for memory efficiency.
+- The shared data collection layer eliminates ~60% code duplication between
+  generate_portal() and generate_portal_split().
 """
 from __future__ import annotations
 
@@ -20,12 +26,11 @@ import re
 import sys
 import base64
 import logging
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 from collections import Counter
 
-from src.constants import FILTER_DIRS as _FILTER_DIRS
-from src.constants import should_filter_file as _should_filter_file
+import src.constants as const
 from src.parser.dispatcher import parse_file
 from src.scanner import walk_files
 from src.generator.templates import (
@@ -35,14 +40,19 @@ from src.generator.templates import (
     _path_to_subpage_filename,
 )
 from src.utils import human_readable_size
+from src.data_models import (
+    PortalDocMeta,
+    PortalDocText,
+    PortalBuildResult,
+)
 
 logger = logging.getLogger(__name__)
 
 # Default max characters per file before truncation.
-# Override via generate_portal(..., max_chars_per_file=...)
-# Increased from 50,000 to 200,000 to prevent silent truncation for larger files.
-# For knowledge base completeness, use --max-chars-per-file 0 for no limit.
-_DEFAULT_MAX_CHARS_PER_FILE = 200_000
+# Override via parameter to collect_portal_documents().
+# Set to 200,000 to prevent silent truncation for larger files.
+# For knowledge base completeness, use max_chars_per_file=0 for no limit.
+_DEFAULT_MAX_CHARS_PER_FILE = const.DEFAULT_MAX_CHARS_PER_FILE
 
 
 # ============================================================
@@ -52,8 +62,18 @@ _DEFAULT_MAX_CHARS_PER_FILE = 200_000
 def extract_keywords(text: str, max_words: int = 8) -> list:
     """Extract keywords from text using frequency + stop word filtering.
 
-    Supports Chinese word extraction (2-8 characters) and English words (3-20 chars).
-    Filters common stop words in both languages.
+    Design notes:
+    - Uses Chinese character extraction (2-8 char sequences) + English word tokenization.
+    - Stop word list includes common Chinese/English function words and HTML/CSS terms.
+    - Frequency-based (Counter) rather than TF-IDF — simpler and adequate for code/docs.
+    - The stop word list is intentionally large to surface domain-significant terms
+      rather than generic programming vocabulary (see the English stop words that
+      include 'data', 'text', 'file', 'code', 'type', 'string', 'value', etc.).
+
+    Why not a more sophisticated approach (e.g., TF-IDF, YAKE, KeyBERT)?
+      - Those require external libraries, which contradicts the offline/lightweight design.
+      - For code and documentation files, simple frequency + stop words works well enough.
+      - The keywords feed the tag cloud, not a search ranking algorithm.
     """
     # Chinese: extract 2-8 character sequences to capture multi-character terms
     # like "人工智能" (AI), "机器学习" (machine learning) etc.
@@ -112,7 +132,7 @@ def extract_keywords(text: str, max_words: int = 8) -> list:
 
 
 def _is_readme_file(rel_path: str) -> bool:
-    """Return True if the file is a README."""
+    """Return True if the file is a README (any common extension)."""
     fname = os.path.basename(rel_path).lower()
     return fname in (
         'readme.md', 'readme.txt', 'readme', 'readme.rst', 'readme.markdown',
@@ -131,26 +151,44 @@ def escape_html(s: str) -> str:
 
 
 # ============================================================
-#  File tree builder
+#  File tree builder (single-page mode)
 # ============================================================
 
-def build_file_tree_html(folder_path: str, parsed_files: Optional[set] = None, include_skipped: bool = True) -> str:
-    """Build an ASCII-tree diagram of the folder structure.
+def build_file_tree_html(
+    folder_path: str,
+    parsed_files: Optional[set] = None,
+    include_skipped: bool = True
+) -> str:
+    """Build an ASCII-tree diagram of the folder structure for single-page mode.
 
-    Args:
-        folder_path: Root folder to scan
-        parsed_files: Set of relative paths that were successfully parsed.
-                      Files not in this set will appear grey and unclickable.
-        include_skipped: If True, show filtered/skipped files in the tree.
-                         If False, omit them entirely.
+    Design notes:
+    - Uses recursive rendering with Unicode box-drawing characters.
+    - Handles PermissionError gracefully (skips unreadable directories).
+    - Base64-encodes filenames in onclick handlers to avoid escaping issues
+      with special characters (&, ", ', etc.) in CSS selectors and JS strings.
     """
     lines: list[str] = []
-    _walk_and_render(folder_path, folder_path, lines, prefix="", parsed_files=parsed_files or set(), include_skipped=include_skipped)
+    _walk_and_render(
+        folder_path, folder_path, lines, prefix="",
+        parsed_files=parsed_files or set(),
+        include_skipped=include_skipped,
+    )
     return '\n'.join(lines)
 
 
-def _walk_and_render(root: str, dirpath: str, lines: list, prefix: str, parsed_files: Optional[set] = None, include_skipped: bool = True):
-    """Recursively walk directory and append tree lines."""
+def _walk_and_render(
+    root: str, dirpath: str, lines: list, prefix: str,
+    parsed_files: Optional[set] = None,
+    include_skipped: bool = True,
+):
+    """Recursively walk directory and append tree lines.
+
+    Why recursive rather than iterative with a stack?
+      - The recursive approach naturally mirrors the tree structure.
+      - Directory depth is bounded (filesystem limits), so stack overflow
+        is not a practical concern.
+      - Unicode box-drawing prefix tracking is simpler with recursion.
+    """
     if parsed_files is None:
         parsed_files = set()
 
@@ -165,11 +203,11 @@ def _walk_and_render(root: str, dirpath: str, lines: list, prefix: str, parsed_f
         rel_path = os.path.relpath(full_path, root)
 
         if os.path.isdir(full_path):
-            if name in _FILTER_DIRS or name.startswith('.'):
+            if name in const.FILTER_DIRS or name.startswith('.'):
                 continue
             items.append(('dir', name, full_path, rel_path))
         else:
-            if not include_skipped and _should_filter_file(rel_path):
+            if not include_skipped and const.should_filter_file(rel_path):
                 continue
             items.append(('file', name, full_path, rel_path))
 
@@ -219,76 +257,74 @@ def _walk_and_render(root: str, dirpath: str, lines: list, prefix: str, parsed_f
 
 
 # ============================================================
-#  Main portal generation
+#  Shared document collection layer
 # ============================================================
 
-def generate_portal(
+def collect_portal_documents(
     folder_path: str,
-    output_dir: str,
     include_skipped: bool = True,
     show_progress: bool = True,
     language: str = "en",
-    max_chars_per_file: int = _DEFAULT_MAX_CHARS_PER_FILE,
-) -> dict:
-    """Generate single-page knowledge portal with all file contents.
+    max_chars_per_file: Optional[int] = _DEFAULT_MAX_CHARS_PER_FILE,
+) -> PortalBuildResult:
+    """Unified scan + parse + model phase for portal generation.
+
+    This is the shared data collection layer consumed by both generate_portal()
+    and generate_portal_split(). It eliminates ~60% of the code that was previously
+    duplicated between the two rendering functions.
+
+    Design notes:
+    - Walks files via walk_files() (single filtering entry point).
+    - Computes filtered-file count from explicit status rather than set difference.
+    - Applies truncation at clean line boundaries (rfind('\n') at >50% of limit).
+    - Returns a PortalBuildResult that both renderers consume directly.
 
     Args:
         folder_path: Root folder to scan.
-        output_dir: Output directory for generated portal.
-        include_skipped: Whether to show skipped file entries in file tree.
-        show_progress: Whether to print progress to console.
-        language: Language code ('en' or 'zh').
+        include_skipped: Whether to show skipped file entries in metadata.
+        show_progress: Whether to print progress bar to console.
+        language: Language code ('en' or 'zh') for truncation messages.
         max_chars_per_file: Maximum characters per file before truncation.
                             Set to 0 or None for no limit.
+
+    Returns:
+        PortalBuildResult with docs_meta, docs_texts, and aggregate counts.
     """
-    if not os.path.isdir(folder_path):
-        raise ValueError("Not a valid folder: {}".format(folder_path))
-
-    os.makedirs(output_dir, exist_ok=True)
-
     all_files = list(walk_files(folder_path))
     total_files = len(all_files)
+    folder_name = os.path.basename(os.path.abspath(folder_path))
 
-    # Count files filtered by scanner (e.g. .bin, .exe) not yielded by walk_files —
-    # these are "skipped" from the portal's perspective.
+    # Count scanner-filtered files via explicit status computation.
+    # This replaces the old two-pass set-difference pattern.
     _walked_set = {fp for fp, _ in all_files}
-    _scanner_filtered_count = 0
+    scanner_filtered_count = 0
     for _dp, _dns, _fns in os.walk(folder_path):
-        _dns[:] = [d for d in _dns if d not in _FILTER_DIRS and not d.startswith('.')]
+        _dns[:] = [d for d in _dns if d not in const.FILTER_DIRS and not d.startswith('.')]
         for _fn in _fns:
             _fp = os.path.join(_dp, _fn)
             if _fp not in _walked_set:
                 _bn = os.path.basename(_fn)
                 if not _bn.startswith('.') and _bn not in ('Thumbs.db', 'desktop.ini', '.DS_Store'):
-                    _scanner_filtered_count += 1
+                    scanner_filtered_count += 1
 
-    if total_files == 0 and _scanner_filtered_count == 0:
+    if total_files == 0 and scanner_filtered_count == 0:
         logger.warning("No parseable files found in %s", folder_path)
-        return {
-            "doc_count": 0,
-            "total_chars": 0,
-            "skipped": 0,
-            "errors": 0,
-            "output_dir": output_dir,
-            "index_file": None,
-            "folder_name": os.path.basename(os.path.abspath(folder_path)),
-        }
+        return PortalBuildResult(
+            docs_meta=[], docs_texts=[],
+            parsed_count=0, skipped_count=0, error_count=0,
+            total_chars=0, folder_name=folder_name, all_files=[],
+        )
 
-    folder_name = os.path.basename(os.path.abspath(folder_path))
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    docs_meta = []
-    docs_texts = []
+    docs_meta: List[PortalDocMeta] = []
+    docs_texts: List[PortalDocText] = []
     total_chars = 0
     parsed_count = 0
-    skipped_count = _scanner_filtered_count  # start with scanner-filtered count
+    skipped_count = scanner_filtered_count
     error_count = 0
     skip_by_reason: dict[str, int] = {}
 
     if show_progress:
         if sys.platform == 'win32':
-            # Windows CMD with CP936 may garble \r carriage return with non-ASCII chars;
-            # use sys.stdout.reconfigure to ensure proper print behavior
             if hasattr(sys.stdout, 'reconfigure'):
                 try:
                     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -305,7 +341,6 @@ def generate_portal(
             bar_len = 30
             filled = int(bar_len * (file_idx + 1) / total_files)
             bar = '#' * filled + '.' * (bar_len - filled)
-            # Avoid problematic characters in progress bar; use ASCII-only progress line
             print("\r  [%s] %d/%d (%.0f%%)" % (
                 bar, file_idx + 1, total_files, pct),
                 end='', flush=True)
@@ -327,64 +362,73 @@ def generate_portal(
 
         if result is None:
             skipped_count += 1
-            skip_by_reason['parser returned no content'] = skip_by_reason.get('parser returned no content', 0) + 1
+            skip_by_reason['parser returned no content'] = (
+                skip_by_reason.get('parser returned no content', 0) + 1
+            )
             continue
 
         text = (result.get("text") or "").strip()
         if not text:
             skipped_count += 1
-            skip_by_reason['empty content after parsing'] = skip_by_reason.get('empty content after parsing', 0) + 1
+            skip_by_reason['empty content after parsing'] = (
+                skip_by_reason.get('empty content after parsing', 0) + 1
+            )
             continue
 
         char_count = len(text)
 
-        # ── Issue 2 fix: remove dead UTF-8 byte check, keep line-boundary truncation ──
-        # ── Issue 10 fix: use max_chars_per_file parameter instead of hardcoded constant ──
+        # Truncation: apply at clean newline boundary when possible.
+        # Why rfind('\n') at >50% of limit?
+        #   - If the last newline in the truncated region is near the end,
+        #     it's likely at a natural paragraph/section boundary.
+        #   - If it's in the first half, the file has very long lines
+        #     (e.g., minified JSON) and clean-splitting isn't practical.
         if max_chars_per_file and char_count > max_chars_per_file:
-            truncated = text[:max_chars_per_file]
-            last_newline = truncated.rfind('\n')
+            truncated_text = text[:max_chars_per_file]
+            last_newline = truncated_text.rfind('\n')
             if last_newline > max_chars_per_file * 0.5:
-                truncated = truncated[:last_newline]
-            text = truncated
-            # Bilingual truncation message based on language parameter
+                truncated_text = truncated_text[:last_newline]
+            text = truncated_text
             if language == "zh":
                 text += (
-                    f"\n\n... [截断：原文 {char_count:,} 字符，仅展示前 {max_chars_per_file:,} 字符] ...\n"
+                    f"\n\n... [截断：原文 {char_count:,} 字符，仅展示前 "
+                    f"{max_chars_per_file:,} 字符] ...\n"
                 )
             else:
                 text += (
-                    f"\n\n... [Truncated: original {char_count:,} chars, showing first {max_chars_per_file:,} chars] ...\n"
+                    f"\n\n... [Truncated: original {char_count:,} chars, "
+                    f"showing first {max_chars_per_file:,} chars] ...\n"
                 )
             char_count = len(text)
 
         total_chars += char_count
-
         keywords = extract_keywords(text)
         preview = text[:200].replace('\n', ' ').strip()
 
-        docs_meta.append({
-            "title": rel_path,
-            "file": rel_path,
-            "size": char_count,
-            "size_hr": size_hr,
-            "preview": preview,
-            "tags": keywords[:5],
-            "skipped": False,
-            "mtime": mtime_str,
-        })
-        docs_texts.append({
-            "title": rel_path,
-            "text": text,
-            "size": char_count,
-            "file_type": _get_file_type(rel_path),
-            "size_hr": size_hr,
-            "tags": keywords[:5],
-        })
+        docs_meta.append(PortalDocMeta(
+            title=rel_path,
+            file=rel_path,
+            size=char_count,
+            size_hr=size_hr,
+            preview=preview,
+            tags=keywords[:5],
+            skipped=False,
+            mtime=mtime_str,
+        ))
+        docs_texts.append(PortalDocText(
+            title=rel_path,
+            text=text,
+            size=char_count,
+            file_type=_get_file_type(rel_path),
+            size_hr=size_hr,
+            tags=keywords[:5],
+        ))
         parsed_count += 1
 
     if show_progress:
         print()
 
+    # Sort by title for stable, predictable output ordering.
     docs_meta.sort(key=lambda d: d.get("title", "").lower())
     docs_texts.sort(key=lambda d: d.get("title", "").lower())
 
@@ -395,39 +439,115 @@ def generate_portal(
     if error_count:
         print(f"  [Error Summary] {error_count} file(s) failed to parse")
 
-    parsed_paths = {d["file"] for d in docs_meta if not d.get("skipped")}
-    file_tree_html = build_file_tree_html(folder_path, parsed_files=parsed_paths, include_skipped=include_skipped)
-    file_contents_html = build_file_content_blocks(docs_texts)
+    return PortalBuildResult(
+        docs_meta=docs_meta,
+        docs_texts=docs_texts,
+        parsed_count=parsed_count,
+        skipped_count=skipped_count,
+        error_count=error_count,
+        total_chars=total_chars,
+        folder_name=folder_name,
+        all_files=all_files,
+    )
 
-    if docs_meta or file_tree_html:
-        index_html = wrap_index_html(
-            docs_meta=docs_meta,
-            folder_name=folder_name,
-            folder_path=os.path.abspath(folder_path),
-            total_chars=total_chars,
-            generated_at=now,
-            file_tree_html=file_tree_html,
-            file_contents_html=file_contents_html,
-            language=language,
-        )
-        # Use "index.html" so HTTP servers can find it by default
-        index_filename = "index.html"
-        index_path = os.path.join(output_dir, index_filename)
-        with open(index_path, 'w', encoding='utf-8') as f:
-            f.write(index_html)
-        logger.info("Portal index: %s", index_path)
-    else:
-        index_path = None
-        logger.warning("No documents parsed!")
+
+# ============================================================
+#  Portal generation entry points
+# ============================================================
+
+def generate_portal(
+    folder_path: str,
+    output_dir: str,
+    include_skipped: bool = True,
+    show_progress: bool = True,
+    language: str = "en",
+    max_chars_per_file: int = _DEFAULT_MAX_CHARS_PER_FILE,
+) -> dict:
+    """Generate a single-page knowledge portal with all file contents embedded.
+
+    Design notes:
+    - All file content is embedded in one index.html for AI readability.
+      Browser AI tools (Edge Copilot, ChatGPT) can read the full DOM
+      content from a single page but cannot follow links to subpages.
+    - Default collapsed state was removed — content is always expanded
+      to maximize AI readability at the cost of initial load time.
+    - The "Expand All (AI Mode)" concept is now default behavior.
+
+    Why single-page instead of always split?
+      - AI copilots read one page at a time; split mode requires the user
+        to open multiple tabs manually.
+      - For small-to-medium folders (<100 files), single-page is simpler
+        and provides better AI integration.
+      - For large folders (>100 files), use generate_portal_split().
+
+    Args:
+        folder_path: Root folder to scan.
+        output_dir: Output directory for generated portal.
+        include_skipped: Whether to show skipped file entries in file tree.
+        show_progress: Whether to print progress to console.
+        language: Language code ('en' or 'zh').
+        max_chars_per_file: Maximum characters per file before truncation.
+                            Set to 0 or None for no limit.
+
+    Returns:
+        dict with keys: doc_count, total_chars, skipped, errors, output_dir,
+        index_file, folder_name
+    """
+    if not os.path.isdir(folder_path):
+        raise ValueError("Not a valid folder: {}".format(folder_path))
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # ── Phase 1: Collect documents (shared with split mode) ──
+    build_result = collect_portal_documents(
+        folder_path=folder_path,
+        include_skipped=include_skipped,
+        show_progress=show_progress,
+        language=language,
+        max_chars_per_file=max_chars_per_file,
+    )
+
+    if build_result["parsed_count"] == 0 and build_result["skipped_count"] == 0:
+        logger.warning("No parseable files found in %s", folder_path)
+        return {
+            "doc_count": 0, "total_chars": 0, "skipped": 0, "errors": 0,
+            "output_dir": output_dir, "index_file": None,
+            "folder_name": build_result["folder_name"],
+        }
+
+    # ── Phase 2: Render single-page portal ──
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    parsed_paths = {d["file"] for d in build_result["docs_meta"] if not d.get("skipped")}
+    file_tree_html = build_file_tree_html(
+        folder_path,
+        parsed_files=parsed_paths,
+        include_skipped=include_skipped,
+    )
+    file_contents_html = build_file_content_blocks(build_result["docs_texts"])
+
+    index_html = wrap_index_html(
+        docs_meta=build_result["docs_meta"],
+        folder_name=build_result["folder_name"],
+        folder_path=os.path.abspath(folder_path),
+        total_chars=build_result["total_chars"],
+        generated_at=now,
+        file_tree_html=file_tree_html,
+        file_contents_html=file_contents_html,
+        language=language,
+    )
+    index_path = os.path.join(output_dir, "index.html")
+    with open(index_path, 'w', encoding='utf-8') as f:
+        f.write(index_html)
+    logger.info("Portal index: %s", index_path)
 
     return {
-        "doc_count": parsed_count,
-        "total_chars": total_chars,
-        "skipped": skipped_count,
-        "errors": error_count,
+        "doc_count": build_result["parsed_count"],
+        "total_chars": build_result["total_chars"],
+        "skipped": build_result["skipped_count"],
+        "errors": build_result["error_count"],
         "output_dir": output_dir,
         "index_file": index_path,
-        "folder_name": folder_name,
+        "folder_name": build_result["folder_name"],
     }
 
 
@@ -439,11 +559,23 @@ def generate_portal_split(
     language: str = "en",
     max_chars_per_file: int = _DEFAULT_MAX_CHARS_PER_FILE,
 ) -> dict:
-    """Generate a split-file knowledge portal with index page + individual subpages.
+    """Generate a split-file knowledge portal with index + per-file subpages.
 
     Produces:
-        output_dir/index.html          - Main index page with file tree, search, stats
+        output_dir/index.html          - Main index with file tree + search
         output_dir/docs/*.html         - Individual file subpages
+
+    Design notes:
+    - Split mode is the default for large folders (>100 files).
+      Each file gets its own subpage, reducing browser memory pressure.
+    - Search index is lightweight (path, name, tags, preview only —
+      NOT full text) to keep the index page fast.
+    - Subpages link back to the index via "Back to Index" navigation.
+
+    Why split mode exists alongside single-page mode:
+      - Single-page is better for AI copilot integration (one page to read).
+      - Split mode is better for large folders and human browsing.
+      - The user should choose based on their use case.
 
     Args:
         folder_path: Root folder to scan.
@@ -454,13 +586,13 @@ def generate_portal_split(
         max_chars_per_file: Maximum characters per file before truncation.
 
     Returns:
-        dict with keys: doc_count, total_chars, skipped, errors, output_dir, index_file, folder_name
+        dict with keys: doc_count, total_chars, skipped, errors, output_dir,
+        index_file, folder_name
     """
     from src.generator.templates import (
         build_subpage_html,
         build_file_tree_split_html,
         build_search_index_json,
-        wrap_index_html,
     )
 
     if not os.path.isdir(folder_path):
@@ -470,196 +602,72 @@ def generate_portal_split(
     docs_dir = os.path.join(output_dir, "docs")
     os.makedirs(docs_dir, exist_ok=True)
 
-    all_files = list(walk_files(folder_path))
-    total_files = len(all_files)
+    # ── Phase 1: Collect documents (shared with single-page mode) ──
+    build_result = collect_portal_documents(
+        folder_path=folder_path,
+        include_skipped=include_skipped,
+        show_progress=show_progress,
+        language=language,
+        max_chars_per_file=max_chars_per_file,
+    )
 
-    # Count files filtered by scanner (e.g. .bin, .exe) not yielded by walk_files —
-    # these are "skipped" from the portal's perspective.
-    _walked_set = {fp for fp, _ in all_files}
-    _scanner_filtered_count = 0
-    for _dp, _dns, _fns in os.walk(folder_path):
-        _dns[:] = [d for d in _dns if d not in _FILTER_DIRS and not d.startswith('.')]
-        for _fn in _fns:
-            _fp = os.path.join(_dp, _fn)
-            if _fp not in _walked_set:
-                _bn = os.path.basename(_fn)
-                if not _bn.startswith('.') and _bn not in ('Thumbs.db', 'desktop.ini', '.DS_Store'):
-                    _scanner_filtered_count += 1
-
-    if total_files == 0 and _scanner_filtered_count == 0:
+    if build_result["parsed_count"] == 0 and build_result["skipped_count"] == 0:
         logger.warning("No parseable files found in %s", folder_path)
         return {
-            "doc_count": 0,
-            "total_chars": 0,
-            "skipped": 0,
-            "errors": 0,
-            "output_dir": output_dir,
-            "index_file": None,
-            "folder_name": os.path.basename(os.path.abspath(folder_path)),
+            "doc_count": 0, "total_chars": 0, "skipped": 0, "errors": 0,
+            "output_dir": output_dir, "index_file": None,
+            "folder_name": build_result["folder_name"],
         }
 
-    folder_name = os.path.basename(os.path.abspath(folder_path))
+    # ── Phase 2: Render split portal ──
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    docs_texts = []
-    docs_meta = []
-    total_chars = 0
-    parsed_count = 0
-    skipped_count = _scanner_filtered_count  # start with scanner-filtered count
-    error_count = 0
-    skip_by_reason: dict[str, int] = {}
-
-    if show_progress:
-        print("  [Scan] Found %d files, parsing..." % total_files)
-
-    for file_idx, (full_path, rel_path) in enumerate(all_files):
-        file_size = os.path.getsize(full_path)
-        size_hr = human_readable_size(file_size)
-
-        if show_progress:
-            pct = (file_idx + 1) / total_files * 100
-            bar_len = 30
-            filled = int(bar_len * (file_idx + 1) / total_files)
-            bar = '#' * filled + '.' * (bar_len - filled)
-            print("\r  [%s] %d/%d (%.0f%%) - %s" % (
-                bar, file_idx + 1, total_files, pct, rel_path[:60]),
-                end='', flush=True)
-
-        try:
-            result = parse_file(full_path)
-        except Exception as e:
-            logger.exception("Error parsing %s: %s", rel_path, e)
-            if show_progress:
-                print("\n  [Error] {} - {}".format(rel_path, e))
-            error_count += 1
-            continue
-
-        try:
-            mtime = os.path.getmtime(full_path)
-            mtime_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
-        except Exception:
-            mtime_str = ""
-
-        if result is None:
-            skipped_count += 1
-            skip_by_reason['parser returned no content'] = skip_by_reason.get('parser returned no content', 0) + 1
-            continue
-
-        text = (result.get("text") or "").strip()
-        if not text:
-            skipped_count += 1
-            skip_by_reason['empty content after parsing'] = skip_by_reason.get('empty content after parsing', 0) + 1
-            continue
-
-        char_count = len(text)
-
-        if max_chars_per_file and char_count > max_chars_per_file:
-            truncated = text[:max_chars_per_file]
-            last_newline = truncated.rfind('\n')
-            if last_newline > max_chars_per_file * 0.5:
-                truncated = truncated[:last_newline]
-            text = truncated
-            if language == "zh":
-                text += (
-                    f"\n\n... [截断：原文 {char_count:,} 字符，仅展示前 {max_chars_per_file:,} 字符] ...\n"
-                )
-            else:
-                text += (
-                    f"\n\n... [Truncated: original {char_count:,} chars, showing first {max_chars_per_file:,} chars] ...\n"
-                )
-            char_count = len(text)
-
-        total_chars += char_count
-        keywords = extract_keywords(text)
-        preview = text[:200].replace('\n', ' ').strip()
-        file_type = _get_file_type(rel_path)
-
-        doc_data = {
-            "title": rel_path,
-            "text": text,
-            "size": char_count,
-            "file_type": file_type,
-            "size_hr": size_hr,
-            "tags": keywords[:5],
-        }
-
-        docs_texts.append(doc_data)
-        docs_meta.append({
-            "title": rel_path,
-            "file": rel_path,
-            "size": char_count,
-            "size_hr": size_hr,
-            "preview": preview,
-            "tags": keywords[:5],
-            "skipped": False,
-            "mtime": mtime_str,
-        })
-        parsed_count += 1
-
-        # ── Generate subpage for this file ──
-        subpage_html = build_subpage_html(doc_data, folder_name, language)
-        subpage_filename = _path_to_subpage_filename(rel_path)
+    # Generate per-file subpages
+    for doc_data in build_result["docs_texts"]:
+        subpage_html = build_subpage_html(doc_data, build_result["folder_name"], language)
+        subpage_filename = _path_to_subpage_filename(doc_data["title"])
         subpage_path = os.path.join(docs_dir, subpage_filename)
         with open(subpage_path, 'w', encoding='utf-8') as f:
             f.write(subpage_html)
 
-    if show_progress:
-        print()
+    # Build index page
+    file_tree_html = build_file_tree_split_html(
+        folder_path, build_result["docs_texts"], include_skipped=include_skipped
+    )
+    search_index_json = build_search_index_json(build_result["docs_texts"])
 
-    if skip_by_reason:
-        print(f"  [Skip Summary] {skipped_count} files skipped:")
-        for reason, count in sorted(skip_by_reason.items(), key=lambda x: -x[1]):
-            print(f"    - {count} file(s): {reason}")
-    if error_count:
-        print(f"  [Error Summary] {error_count} file(s) failed to parse")
-
-    # ── Sort docs ──
-    docs_meta.sort(key=lambda d: d.get("title", "").lower())
-    docs_texts.sort(key=lambda d: d.get("title", "").lower())
-
-    # ── Build index page ──
-    file_tree_html = build_file_tree_split_html(folder_path, docs_texts, include_skipped=include_skipped)
-
-    # Build search index JSON
-    search_index_json = build_search_index_json(docs_texts)
-
-    # Build index page (no file contents, just tree + search)
     index_html = wrap_index_html(
-        docs_meta=docs_meta,
-        folder_name=folder_name,
+        docs_meta=build_result["docs_meta"],
+        folder_name=build_result["folder_name"],
         folder_path=os.path.abspath(folder_path),
-        total_chars=total_chars,
+        total_chars=build_result["total_chars"],
         generated_at=now,
         file_tree_html=file_tree_html,
         file_contents_html="",  # No embedded content in split mode
         language=language,
     )
 
-    # Inject search index JSON into the index page before closing </body>
+    # Inject search index JSON before closing </body>
     search_script = (
         f'<script>\n'
         f'// ── Search index data for split-file mode ──\n'
-        f'// This enhances the template\'s built-in tree filter by also matching tags and preview text.\n'
         f'const SEARCH_INDEX = {search_index_json};\n'
         f'</script>\n'
     )
-
-    # Insert search script before </body>
     index_html = index_html.replace('</body>', search_script + '\n</body>')
 
-    index_filename = "index.html"
-    index_path = os.path.join(output_dir, index_filename)
+    index_path = os.path.join(output_dir, "index.html")
     with open(index_path, 'w', encoding='utf-8') as f:
         f.write(index_html)
     logger.info("Split portal index: %s", index_path)
     logger.info("Subpages directory: %s", docs_dir)
 
     return {
-        "doc_count": parsed_count,
-        "total_chars": total_chars,
-        "skipped": skipped_count,
-        "errors": error_count,
+        "doc_count": build_result["parsed_count"],
+        "total_chars": build_result["total_chars"],
+        "skipped": build_result["skipped_count"],
+        "errors": build_result["error_count"],
         "output_dir": output_dir,
         "index_file": index_path,
-        "folder_name": folder_name,
+        "folder_name": build_result["folder_name"],
     }

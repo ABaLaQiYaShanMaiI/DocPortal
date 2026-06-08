@@ -138,11 +138,21 @@ def is_file_supported(full_path: str, ext: str) -> bool:
 # ── Shared folder walker ──
 
 def walk_files(root_dir: str):
-    """Yield (full_path, rel_path) for all non-filtered files under root_dir.
+    """Walk the folder and yield parseable candidate files.
 
-    Used by both CLI (generate.py) and GUI (collect_files_info).
-    Filters directories and files according to the rules defined in
-    constants.py (should_filter_dir, should_filter_file).
+    Design notes:
+    - Applies directory/file filtering rules centrally (via should_filter_dir
+      and should_filter_file from constants.py).
+    - Excludes hidden/system/build artifacts early — before any I/O beyond os.walk.
+    - Returns relative paths so downstream modules can build stable output names
+      regardless of where the source folder lives on disk.
+    - Filters dirnames in-place (dirnames[:] = ...) to prune entire subtrees,
+      which is more efficient than filtering individual files after discovery.
+
+    Why this matters:
+    - Keeps scanner/portal/chunker using the same file visibility rules.
+    - Prevents duplicated filtering logic across modules.
+    - The single walk entry point means filter rule changes take effect everywhere.
 
     Args:
         root_dir: Root directory path to walk.

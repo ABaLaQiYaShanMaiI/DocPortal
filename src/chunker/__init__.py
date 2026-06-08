@@ -201,7 +201,24 @@ def chunk_files(
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     force_split: bool = False,
 ) -> List[FileChunk]:
-    """Split a sorted list of file entries into chunks.
+    """Split a sorted list of file entries into chunks for LLM context fitting.
+
+    Design notes:
+    - Uses **character count** as the splitting unit (not bytes), stable across encodings.
+      Character count is more meaningful for LLMs since models tokenize by characters.
+    - **File-level integrity** (default): never splits a file mid-document.
+      When accumulated chars exceed chunk_size, the *next* file goes to a new chunk.
+    - **Oversized files** (default): A single file larger than chunk_size gets its
+      own dedicated chunk, with a warning printed to the user.
+    - **Force-split mode** (--force-split): Splits oversized files across multiple
+      chunks at chunk_size boundaries, so no single chunk exceeds the size limit.
+
+    Why not just split at chunk_size without file-level integrity?
+      - Splitting mid-file would produce fragments that are hard for LLMs to interpret.
+      - The index HTML shows which files are in which chunk, and users expect
+        complete files, not partial fragments.
+      - Force-split is provided as an escape hatch for truly massive files (e.g.,
+        10MB+ data exports) that would otherwise create unusable chunks.
 
     Args:
         entries: List of dicts with keys {rel_path, text, size_hr}, sorted.
